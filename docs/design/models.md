@@ -23,7 +23,7 @@ A tariff can have zero or more energy, demand, and customer components. It must 
 
 - A customer charge is a $ amount added to each monthly bill regardless of usage.
 
-- Time periods are represented by start and end times. An interval is incldued in a time period if the start of the interval is before the end time of the period. I.e. a period from 12:00:00 to 13:59:59 will include the interval starting 13:55:00 and will not include the interval starting 14:00:00. All time periods are canonically represented in UTC.
+- Time periods are represented by start and end times. An interval is included in a time period if the start of the interval is strictly before the end time of the period. I.e. Periods from 12:00:00 to 13:59:59 and from 12:00:00 to 14:00:00 will both include the interval starting 13:55:00 and will not include the interval starting 14:00:00. All time periods are canonically represented in UTC.
 
 Each row represents a tariff and has: columns:
 - name
@@ -167,10 +167,11 @@ For now, we assume that there is a 1-1 relation between customers and meters.
 Each row represents customer usage in a 5-minute interval and has columns:
 - customer_id (FK)
 - interval_start_utc (Datetime)
-- interval_end_utc (Datetime)
 - energy_kwh
 - peak_demand_kw
 - temperature_c
 - created_at_utc (Datetime)
+
+The interval has a fixed 5-minute grain. The interval_end is calculated as interval_start_utc + 5 minutes.
 
 We enforce the constraint that (customer_id, interval_start_utc) is unique.

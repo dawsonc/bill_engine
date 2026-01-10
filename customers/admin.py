@@ -7,7 +7,7 @@ from .models import Customer
 class CustomerAdmin(admin.ModelAdmin):
     list_display = [
         "name",
-        "current_tariff__utility",
+        "get_utility",
         "current_tariff",
         "timezone",
         "created_at",
@@ -16,3 +16,8 @@ class CustomerAdmin(admin.ModelAdmin):
     list_filter = ["current_tariff__utility", "current_tariff"]
     search_fields = ["name"]
     readonly_fields = ["created_at", "updated_at"]
+
+    def get_utility(self, obj):
+        return obj.current_tariff.utility
+
+    get_utility.short_description = "Utility"

@@ -1,10 +1,13 @@
+from datetime import timedelta
+
 from django.db import models
 
 
 class CustomerUsage(models.Model):
     """
     Represents customer energy usage in a 5-minute interval.
-    All intervals are stored in UTC with 5-minute granularity as the canonical representation.
+    All intervals are stored in UTC with fixed 5-minute granularity.
+    The interval_end is calculated as interval_start + 5 minutes.
     """
 
     customer = models.ForeignKey(
@@ -15,9 +18,6 @@ class CustomerUsage(models.Model):
     )
     interval_start_utc = models.DateTimeField(
         db_index=True, help_text="Start of the 5-minute interval in UTC (inclusive)"
-    )
-    interval_end_utc = models.DateTimeField(
-        help_text="End of the 5-minute interval in UTC (exclusive)"
     )
     energy_kwh = models.DecimalField(
         max_digits=12,
@@ -48,5 +48,10 @@ class CustomerUsage(models.Model):
             models.Index(fields=["customer", "interval_start_utc"]),
         ]
 
+    @property
+    def interval_end_utc(self):
+        """Calculate the end of the 5-minute interval."""
+        return self.interval_start_utc + timedelta(minutes=5)
+
     def __str__(self):
-        return f"{self.customer.name} - {self.interval_start_utc} ({self.energy_kwh} kWh)"
+        return f"{self.customer.name} - {self.interval_start_utc} ({self.energy_kwh} kWh, {self.peak_demand_kw} kW)"

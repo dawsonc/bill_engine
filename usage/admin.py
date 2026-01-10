@@ -8,7 +8,6 @@ class CustomerUsageAdmin(admin.ModelAdmin):
     list_display = [
         "customer",
         "interval_start_utc",
-        "interval_end_utc",
         "energy_kwh",
         "peak_demand_kw",
         "temperature_c",
