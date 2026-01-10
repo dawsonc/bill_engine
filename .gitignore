@@ -28,3 +28,6 @@ local_settings.py
 # OS
 .DS_Store
 Thumbs.db
+
+# Test coverage data
+.coverage
