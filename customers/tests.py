@@ -1,4 +1,3 @@
-import datetime
 import time
 
 from django.db.models import ProtectedError
@@ -14,11 +13,7 @@ class CustomerModelTests(TestCase):
     def setUp(self):
         """Create required utility and tariff for customer tests."""
         self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
-        self.tariff = Tariff.objects.create(
-            name="B-19",
-            utility=self.utility,
-            effective_date_start=datetime.date(2024, 1, 1),
-        )
+        self.tariff = Tariff.objects.create(name="B-19", utility=self.utility)
 
     def test_create_and_str(self):
         """Test creating a customer and its string representation."""
