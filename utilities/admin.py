@@ -13,7 +13,6 @@ class HolidayInline(admin.TabularInline):
 class UtilityAdmin(admin.ModelAdmin):
     list_display = ["name", "timezone", "holiday_count"]
     search_fields = ["name"]
-    list_filter = ["timezone"]
     inlines = [HolidayInline]
 
     def holiday_count(self, obj):

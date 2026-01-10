@@ -14,9 +14,9 @@ class Customer(models.Model):
     )
     current_tariff = models.ForeignKey(
         "tariffs.Tariff",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.PROTECT,
+        null=False,
+        blank=False,
         related_name="current_customers",
         help_text="Current tariff for this customer",
     )
@@ -44,11 +44,13 @@ class CustomerTariffHistory(models.Model):
     )
     tariff = models.ForeignKey(
         "tariffs.Tariff",
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="customer_history",
         help_text="Tariff",
     )
-    effective_from = models.DateField(help_text="Date this tariff became effective for the customer")
+    effective_from = models.DateField(
+        help_text="Date this tariff became effective for the customer"
+    )
     effective_to = models.DateField(
         null=True,
         blank=True,
