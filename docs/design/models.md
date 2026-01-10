@@ -31,8 +31,6 @@ Each row represents a tariff and has: columns:
 - Zero or more energy charges
 - Zero or more demand charges
 - Zero or more customer charges
-- effective_date_start (date)
-- effective_date_end (date, nullable)
 
 Each row represents a energy charge and has columns:
 - name
@@ -70,8 +68,6 @@ For bulk upload of tariffs, use the following YAML format:
 name: "PG&E B-19 Secondary"
 utility: "Pacific Gas & Electric"
 timezone: "America/Los_Angeles"  # IANA timezone for converting local times to UTC
-effective_date_start: "2024-01-01"
-effective_date_end: null  # null means currently active
 
 energy_charges:
   - name: "Summer Peak Energy"
@@ -162,7 +158,6 @@ Each utility may define a list of holidays. Each row represents a holiday and ha
 Each row represents a customer and has columns:
 - Name
 - current_tariff_id (FK)
-- past_tariffs (one-to-many to tariffs that may have previously been in effect)
 - Time zone
 
 For now, we assume that there is a 1-1 relation between customers and meters.

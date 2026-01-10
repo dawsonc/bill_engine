@@ -28,39 +28,3 @@ class Customer(models.Model):
 
     def __str__(self):
         return self.name
-
-
-class CustomerTariffHistory(models.Model):
-    """
-    Tracks historical tariff assignments for a customer.
-    Allows customers to change tariffs over time.
-    """
-
-    customer = models.ForeignKey(
-        Customer,
-        on_delete=models.CASCADE,
-        related_name="tariff_history",
-        help_text="Customer",
-    )
-    tariff = models.ForeignKey(
-        "tariffs.Tariff",
-        on_delete=models.PROTECT,
-        related_name="customer_history",
-        help_text="Tariff",
-    )
-    effective_from = models.DateField(
-        help_text="Date this tariff became effective for the customer"
-    )
-    effective_to = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Date this tariff stopped being effective (null if current)",
-    )
-
-    class Meta:
-        verbose_name_plural = "Customer tariff histories"
-        ordering = ["customer", "-effective_from"]
-        unique_together = [["customer", "effective_from"]]
-
-    def __str__(self):
-        return f"{self.customer.name} - {self.tariff.name} (from {self.effective_from})"
