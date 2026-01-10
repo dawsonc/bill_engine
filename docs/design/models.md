@@ -41,6 +41,7 @@ Each row represents a energy charge and has columns:
 - applies_start_date (nullable)
 - applies_end_date (nullable)
 - applies_weekends (boolean)
+- applies_weekdays (boolean)
 - applies_holidays (boolean)
 
 Each row represents a demand charge and has columns:
@@ -52,6 +53,7 @@ Each row represents a demand charge and has columns:
 - applies_start_date (nullable)
 - applies_end_date (nullable)
 - applies_weekends (boolean)
+- applies_weekdays (boolean)
 - applies_holidays (boolean)
 - peak_type ("daily" or "monthly")
 
@@ -76,8 +78,9 @@ energy_charges:
     period_end_time: "18:59:59"
     applies_start_date: "2024-06-01"
     applies_end_date: "2024-09-30"
-    applies_weekends: false
-    applies_holidays: false
+    applies_weekends: true
+    applies_weekdays: true
+    applies_holidays: true
 
   - name: "Summer Part-Peak Energy"
     rate_usd_per_kwh: 0.10123
@@ -85,8 +88,9 @@ energy_charges:
     period_end_time: "11:59:59"
     applies_start_date: "2024-06-01"
     applies_end_date: "2024-09-30"
-    applies_weekends: false
-    applies_holidays: false
+    applies_weekends: true
+    applies_weekdays: true
+    applies_holidays: true
 
   - name: "Winter Part-Peak Energy"
     rate_usd_per_kwh: 0.09876
@@ -94,8 +98,9 @@ energy_charges:
     period_end_time: "13:29:59"
     applies_start_date: "2024-10-01"
     applies_end_date: "2024-05-31"
-    applies_weekends: false
-    applies_holidays: false
+    applies_weekends: true
+    applies_weekdays: true
+    applies_holidays: true
 
 demand_charges:
   - name: "Summer Peak Demand"
@@ -104,8 +109,9 @@ demand_charges:
     period_end_time: "18:59:59"
     applies_start_date: "2024-06-01"
     applies_end_date: "2024-09-30"
-    applies_weekends: false
-    applies_holidays: false
+    applies_weekends: true
+    applies_weekdays: true
+    applies_holidays: true
     peak_type: "monthly"
 
   - name: "Summer Part-Peak Demand"
@@ -114,8 +120,9 @@ demand_charges:
     period_end_time: "11:59:59"
     applies_start_date: "2024-06-01"
     applies_end_date: "2024-09-30"
-    applies_weekends: false
-    applies_holidays: false
+    applies_weekends: true
+    applies_weekdays: true
+    applies_holidays: true
     peak_type: "monthly"
 
   - name: "Max Demand (Non-Coincident)"

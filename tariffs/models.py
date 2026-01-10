@@ -4,6 +4,7 @@ from django.db import models
 class Tariff(models.Model):
     """
     Represents a utility tariff (e.g., PG&E B-19 Secondary).
+
     A tariff defines the pricing structure for energy, demand, and customer charges.
     """
 
@@ -14,18 +15,10 @@ class Tariff(models.Model):
         related_name="tariffs",
         help_text="Utility company offering this tariff",
     )
-    effective_date_start = models.DateField(
-        help_text="First date this tariff version is effective (inclusive)"
-    )
-    effective_date_end = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Last date this tariff version is effective (inclusive). Null if currently active.",
-    )
 
     class Meta:
-        ordering = ["utility__name", "name", "-effective_date_start"]
-        unique_together = [["utility", "name", "effective_date_start"]]
+        ordering = ["utility__name", "name"]
+        unique_together = [["utility", "name"]]
 
     def __str__(self):
         return f"{self.name} ({self.utility.name})"
@@ -57,16 +50,23 @@ class EnergyCharge(models.Model):
         help_text="End time of the period in UTC (exclusive of the next minute)"
     )
     applies_start_date = models.DateField(
-        null=True, blank=True, help_text="First date this charge applies (inclusive). Null if year-round."
+        null=True,
+        blank=True,
+        help_text="First date of the year that this charge applies (inclusive). Null if year-round.",
     )
     applies_end_date = models.DateField(
-        null=True, blank=True, help_text="Last date this charge applies (inclusive). Null if year-round."
+        null=True,
+        blank=True,
+        help_text="Last date of the year that this charge applies (inclusive). Null if year-round.",
     )
     applies_weekends = models.BooleanField(
-        default=False, help_text="Whether this charge applies on weekends"
+        default=True, help_text="Whether this charge applies on weekends"
     )
     applies_holidays = models.BooleanField(
-        default=False, help_text="Whether this charge applies on utility holidays"
+        default=True, help_text="Whether this charge applies on utility holidays"
+    )
+    applies_weekdays = models.BooleanField(
+        default=True, help_text="Whether this charge applies on weekdays"
     )
 
     class Meta:
@@ -108,16 +108,23 @@ class DemandCharge(models.Model):
         help_text="End time of the period in UTC (exclusive of the next minute)"
     )
     applies_start_date = models.DateField(
-        null=True, blank=True, help_text="First date this charge applies (inclusive). Null if year-round."
+        null=True,
+        blank=True,
+        help_text="First date this charge applies (inclusive). Null if year-round.",
     )
     applies_end_date = models.DateField(
-        null=True, blank=True, help_text="Last date this charge applies (inclusive). Null if year-round."
+        null=True,
+        blank=True,
+        help_text="Last date this charge applies (inclusive). Null if year-round.",
     )
     applies_weekends = models.BooleanField(
         default=True, help_text="Whether this charge applies on weekends"
     )
     applies_holidays = models.BooleanField(
         default=True, help_text="Whether this charge applies on utility holidays"
+    )
+    applies_weekdays = models.BooleanField(
+        default=True, help_text="Whether this charge applies on weekdays"
     )
     peak_type = models.CharField(
         max_length=10,

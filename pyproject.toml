@@ -5,13 +5,13 @@ description = "Energy bill calculation system with extensible tariff support"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "django>=5.0,<5.1",
     "psycopg[binary]>=3.1",
     "django-timezone-field>=6.1",
     "PyYAML>=6.0",
     "pandas>=2.1",
     "python-dotenv>=1.0",
     "pytz>=2024.1",
+    "django>=5.0.14",
 ]
 
 [project.optional-dependencies]

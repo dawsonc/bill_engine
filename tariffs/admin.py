@@ -15,6 +15,7 @@ class EnergyChargeInline(admin.TabularInline):
         "applies_end_date",
         "applies_weekends",
         "applies_holidays",
+        "applied_weekdays",
     ]
 
 
@@ -30,6 +31,7 @@ class DemandChargeInline(admin.TabularInline):
         "applies_end_date",
         "applies_weekends",
         "applies_holidays",
+        "applied_weekdays",
         "peak_type",
     ]
 
@@ -42,10 +44,9 @@ class CustomerChargeInline(admin.TabularInline):
 
 @admin.register(Tariff)
 class TariffAdmin(admin.ModelAdmin):
-    list_display = ["name", "utility", "effective_date_start", "effective_date_end", "charge_count"]
-    list_filter = ["utility", "effective_date_start"]
+    list_display = ["name", "utility", "charge_count"]
+    list_filter = ["utility"]
     search_fields = ["name", "utility__name"]
-    date_hierarchy = "effective_date_start"
     inlines = [EnergyChargeInline, DemandChargeInline, CustomerChargeInline]
 
     def charge_count(self, obj):
@@ -68,7 +69,7 @@ class EnergyChargeAdmin(admin.ModelAdmin):
         "applies_start_date",
         "applies_end_date",
     ]
-    list_filter = ["tariff", "applies_weekends", "applies_holidays"]
+    list_filter = ["tariff", "applies_weekdays", "applies_weekends", "applies_holidays"]
     search_fields = ["name", "tariff__name"]
 
 
@@ -82,7 +83,13 @@ class DemandChargeAdmin(admin.ModelAdmin):
         "period_end_time_utc",
         "peak_type",
     ]
-    list_filter = ["tariff", "peak_type", "applies_weekends", "applies_holidays"]
+    list_filter = [
+        "tariff",
+        "peak_type",
+        "applies_weekdays",
+        "applies_weekends",
+        "applies_holidays",
+    ]
     search_fields = ["name", "tariff__name"]
 
 
