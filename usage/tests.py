@@ -13,17 +13,13 @@ from .models import CustomerUsage
 class CustomerUsageTests(TestCase):
     def setUp(self):
         """Create required utility, tariff, and customer for usage tests."""
-        self.utility = Utility.objects.create(
-            name="PG&E", timezone="America/Los_Angeles"
-        )
+        self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
         self.tariff = Tariff.objects.create(
             name="B-19",
             utility=self.utility,
             effective_date_start=datetime.date(2024, 1, 1),
         )
-        self.customer = Customer.objects.create(
-            name="Acme Corp", current_tariff=self.tariff
-        )
+        self.customer = Customer.objects.create(name="Acme Corp", current_tariff=self.tariff)
 
     def test_create_and_str(self):
         """Test creating a usage record and its string representation."""

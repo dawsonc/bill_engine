@@ -15,7 +15,7 @@ class EnergyChargeInline(admin.TabularInline):
         "applies_end_date",
         "applies_weekends",
         "applies_holidays",
-        "applied_weekdays",
+        "applies_weekdays",
     ]
 
 
@@ -31,7 +31,7 @@ class DemandChargeInline(admin.TabularInline):
         "applies_end_date",
         "applies_weekends",
         "applies_holidays",
-        "applied_weekdays",
+        "applies_weekdays",
         "peak_type",
     ]
 

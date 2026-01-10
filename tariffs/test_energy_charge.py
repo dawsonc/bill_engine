@@ -3,16 +3,14 @@ from decimal import Decimal
 
 from django.test import TestCase
 
+from tariffs.models import EnergyCharge, Tariff
 from utilities.models import Utility
-from tariffs.models import Tariff, EnergyCharge
 
 
 class EnergyChargeModelTests(TestCase):
     def setUp(self):
         """Create utility and tariff for energy charge tests."""
-        self.utility = Utility.objects.create(
-            name="PG&E", timezone="America/Los_Angeles"
-        )
+        self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
         self.tariff = Tariff.objects.create(name="B-19", utility=self.utility)
 
     def test_create_and_str(self):

@@ -4,16 +4,14 @@ from decimal import Decimal
 from django.db import IntegrityError
 from django.test import TestCase
 
+from tariffs.models import CustomerCharge, DemandCharge, EnergyCharge, Tariff
 from utilities.models import Utility
-from tariffs.models import Tariff, EnergyCharge, DemandCharge, CustomerCharge
 
 
 class TariffModelTests(TestCase):
     def setUp(self):
         """Create a utility for use in tariff tests."""
-        self.utility = Utility.objects.create(
-            name="PG&E", timezone="America/Los_Angeles"
-        )
+        self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
 
     def test_create_and_str(self):
         """Test creating a tariff and its string representation."""
