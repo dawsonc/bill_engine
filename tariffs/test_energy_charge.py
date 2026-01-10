@@ -19,8 +19,8 @@ class EnergyChargeModelTests(TestCase):
             tariff=self.tariff,
             name="Summer Peak Energy",
             rate_usd_per_kwh=Decimal("0.15432"),
-            period_start_time_utc=datetime.time(12, 0, 0),
-            period_end_time_utc=datetime.time(18, 0, 0),
+            period_start_time_local=datetime.time(12, 0, 0),
+            period_end_time_local=datetime.time(18, 0, 0),
         )
         self.assertIsNotNone(charge.pk)
         self.assertEqual(str(charge), "B-19 - Summer Peak Energy ($0.15432/kWh)")
@@ -31,15 +31,15 @@ class EnergyChargeModelTests(TestCase):
             tariff=self.tariff,
             name="Summer Peak Energy",
             rate_usd_per_kwh=Decimal("0.15432"),
-            period_start_time_utc=datetime.time(12, 0, 0),
-            period_end_time_utc=datetime.time(18, 0, 0),
+            period_start_time_local=datetime.time(12, 0, 0),
+            period_end_time_local=datetime.time(18, 0, 0),
         )
         EnergyCharge.objects.create(
             tariff=self.tariff,
             name="Winter Off-Peak Energy",
             rate_usd_per_kwh=Decimal("0.09876"),
-            period_start_time_utc=datetime.time(0, 0, 0),
-            period_end_time_utc=datetime.time(6, 0, 0),
+            period_start_time_local=datetime.time(0, 0, 0),
+            period_end_time_local=datetime.time(6, 0, 0),
         )
 
         self.assertEqual(EnergyCharge.objects.count(), 2)

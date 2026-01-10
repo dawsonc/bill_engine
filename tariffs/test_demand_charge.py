@@ -19,8 +19,8 @@ class DemandChargeModelTests(TestCase):
             tariff=self.tariff,
             name="Summer Peak Demand",
             rate_usd_per_kw=Decimal("18.50"),
-            period_start_time_utc=datetime.time(12, 0, 0),
-            period_end_time_utc=datetime.time(18, 0, 0),
+            period_start_time_local=datetime.time(12, 0, 0),
+            period_end_time_local=datetime.time(18, 0, 0),
             peak_type="monthly",
         )
         self.assertIsNotNone(charge.pk)
@@ -32,8 +32,8 @@ class DemandChargeModelTests(TestCase):
             tariff=self.tariff,
             name="Daily Peak Demand",
             rate_usd_per_kw=Decimal("15.00"),
-            period_start_time_utc=datetime.time(12, 0, 0),
-            period_end_time_utc=datetime.time(18, 0, 0),
+            period_start_time_local=datetime.time(12, 0, 0),
+            period_end_time_local=datetime.time(18, 0, 0),
             peak_type="daily",
         )
         daily_charge.refresh_from_db()
@@ -43,8 +43,8 @@ class DemandChargeModelTests(TestCase):
             tariff=self.tariff,
             name="Monthly Peak Demand",
             rate_usd_per_kw=Decimal("18.50"),
-            period_start_time_utc=datetime.time(12, 0, 0),
-            period_end_time_utc=datetime.time(18, 0, 0),
+            period_start_time_local=datetime.time(12, 0, 0),
+            period_end_time_local=datetime.time(18, 0, 0),
             peak_type="monthly",
         )
         monthly_charge.refresh_from_db()
@@ -56,8 +56,8 @@ class DemandChargeModelTests(TestCase):
             tariff=self.tariff,
             name="Summer Peak Demand",
             rate_usd_per_kw=Decimal("18.50"),
-            period_start_time_utc=datetime.time(12, 0, 0),
-            period_end_time_utc=datetime.time(18, 0, 0),
+            period_start_time_local=datetime.time(12, 0, 0),
+            period_end_time_local=datetime.time(18, 0, 0),
             peak_type="monthly",
         )
 

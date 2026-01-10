@@ -34,15 +34,15 @@ class TariffModelTests(TestCase):
             tariff=tariff,
             name="Summer Peak Energy",
             rate_usd_per_kwh=Decimal("0.15432"),
-            period_start_time_utc=datetime.time(12, 0, 0),
-            period_end_time_utc=datetime.time(18, 0, 0),
+            period_start_time_local=datetime.time(12, 0, 0),
+            period_end_time_local=datetime.time(18, 0, 0),
         )
         DemandCharge.objects.create(
             tariff=tariff,
             name="Summer Peak Demand",
             rate_usd_per_kw=Decimal("18.50"),
-            period_start_time_utc=datetime.time(12, 0, 0),
-            period_end_time_utc=datetime.time(18, 0, 0),
+            period_start_time_local=datetime.time(12, 0, 0),
+            period_end_time_local=datetime.time(18, 0, 0),
             peak_type="monthly",
         )
         CustomerCharge.objects.create(

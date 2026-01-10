@@ -23,7 +23,7 @@ A tariff can have zero or more energy, demand, and customer components. It must 
 
 - A customer charge is a $ amount added to each monthly bill regardless of usage.
 
-- Time periods are represented by start and end times. An interval is included in a time period if the start of the interval is strictly before the end time of the period. I.e. Periods from 12:00:00 to 13:59:59 and from 12:00:00 to 14:00:00 will both include the interval starting 13:55:00 and will not include the interval starting 14:00:00. All time periods are canonically represented in UTC.
+- Time periods are represented by start and end times. An interval is included in a time period if the start of the interval is strictly before the end time of the period. I.e. Periods from 12:00:00 to 13:59:59 and from 12:00:00 to 14:00:00 will both include the interval starting 13:55:00 and will not include the interval starting 14:00:00. Time periods are represented in local utility time.
 
 Each row represents a tariff and has: columns:
 - name
@@ -36,8 +36,8 @@ Each row represents a energy charge and has columns:
 - name
 - tariff_id (FK)
 - rate_usd_per_kwh
-- period_start_time_utc
-- period_end_time_utc
+- period_start_time_local
+- period_end_time_local
 - applies_start_date (nullable)
 - applies_end_date (nullable)
 - applies_weekends (boolean)
@@ -48,8 +48,8 @@ Each row represents a demand charge and has columns:
 - name
 - tariff_id (FK)
 - rate_usd_per_kw
-- period_start_time_utc
-- period_end_time_utc
+- period_start_time_local
+- period_end_time_local
 - applies_start_date (nullable)
 - applies_end_date (nullable)
 - applies_weekends (boolean)
@@ -69,7 +69,6 @@ For bulk upload of tariffs, use the following YAML format:
 ```yaml
 name: "PG&E B-19 Secondary"
 utility: "Pacific Gas & Electric"
-timezone: "America/Los_Angeles"  # IANA timezone for converting local times to UTC
 
 energy_charges:
   - name: "Summer Peak Energy"
@@ -141,9 +140,7 @@ customer_charges:
 ```
 
 Notes on the format:
-- Times are specified in the local timezone of the utility (use IANA timezone names like "America/Los_Angeles")
-- The `timezone` field is used to convert local times to UTC for storage, but is not stored in the tariff record
-- The system will validate that the specified timezone matches the utility's timezone in the database
+- Times are specified in the local timezone of the utility
 - Dates use ISO 8601 format (YYYY-MM-DD)
 - Times use HH:MM:SS format in 24-hour notation
 - Use `null` for date fields that don't apply

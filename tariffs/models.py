@@ -43,11 +43,11 @@ class EnergyCharge(models.Model):
         decimal_places=5,
         help_text="Rate in $/kWh",
     )
-    period_start_time_utc = models.TimeField(
-        help_text="Start time of the period in UTC (inclusive)"
+    period_start_time_local = models.TimeField(
+        help_text="Start time of the period in utility local time (inclusive)"
     )
-    period_end_time_utc = models.TimeField(
-        help_text="End time of the period in UTC (exclusive of the next minute)"
+    period_end_time_local = models.TimeField(
+        help_text="End time of the period in utility local time (exclusive of the next minute)"
     )
     applies_start_date = models.DateField(
         null=True,
@@ -101,11 +101,11 @@ class DemandCharge(models.Model):
         decimal_places=2,
         help_text="Rate in $/kW",
     )
-    period_start_time_utc = models.TimeField(
-        help_text="Start time of the period in UTC (inclusive)"
+    period_start_time_local = models.TimeField(
+        help_text="Start time of the period in utility local time (inclusive)"
     )
-    period_end_time_utc = models.TimeField(
-        help_text="End time of the period in UTC (exclusive of the next minute)"
+    period_end_time_local = models.TimeField(
+        help_text="End time of the period in utility local time (exclusive of the next minute)"
     )
     applies_start_date = models.DateField(
         null=True,

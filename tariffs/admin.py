@@ -9,8 +9,8 @@ class EnergyChargeInline(admin.TabularInline):
     fields = [
         "name",
         "rate_usd_per_kwh",
-        "period_start_time_utc",
-        "period_end_time_utc",
+        "period_start_time_local",
+        "period_end_time_local",
         "applies_start_date",
         "applies_end_date",
         "applies_weekends",
@@ -25,8 +25,8 @@ class DemandChargeInline(admin.TabularInline):
     fields = [
         "name",
         "rate_usd_per_kw",
-        "period_start_time_utc",
-        "period_end_time_utc",
+        "period_start_time_local",
+        "period_end_time_local",
         "applies_start_date",
         "applies_end_date",
         "applies_weekends",
@@ -53,7 +53,7 @@ class TariffAdmin(admin.ModelAdmin):
         energy = obj.energy_charges.count()
         demand = obj.demand_charges.count()
         customer = obj.customer_charges.count()
-        return f"E:{energy} D:{demand} C:{customer}"
+        return f"{energy}/{demand}/{customer}"
 
     charge_count.short_description = "Charges (E/D/C)"
 
@@ -64,8 +64,8 @@ class EnergyChargeAdmin(admin.ModelAdmin):
         "name",
         "tariff",
         "rate_usd_per_kwh",
-        "period_start_time_utc",
-        "period_end_time_utc",
+        "period_start_time_local",
+        "period_end_time_local",
         "applies_start_date",
         "applies_end_date",
     ]
@@ -79,8 +79,8 @@ class DemandChargeAdmin(admin.ModelAdmin):
         "name",
         "tariff",
         "rate_usd_per_kw",
-        "period_start_time_utc",
-        "period_end_time_utc",
+        "period_start_time_local",
+        "period_end_time_local",
         "peak_type",
     ]
     list_filter = [
