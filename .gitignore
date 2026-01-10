@@ -8,3 +8,23 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Django-specific
+*.log
+db.sqlite3
+db.sqlite3-journal
+/static files/
+/mediafiles/
+.env
+local_settings.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,7 +1,33 @@
 [project]
 name = "bill-engine"
 version = "0.1.0"
-description = "Add your description here"
+description = "Energy bill calculation system with extensible tariff support"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "django>=5.0,<5.1",
+    "psycopg[binary]>=3.1",
+    "django-timezone-field>=6.1",
+    "PyYAML>=6.0",
+    "pandas>=2.1",
+    "python-dotenv>=1.0",
+    "pytz>=2024.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-django>=4.7",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "bill_engine.settings.local"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+select = ["E", "F", "I", "N", "W"]
+ignore = ["E501"]
