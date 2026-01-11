@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "tariffs",
     "customers",
     "usage",
+    "billing",
 ]
 
 MIDDLEWARE = [
