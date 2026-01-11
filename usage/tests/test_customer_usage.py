@@ -7,7 +7,7 @@ from customers.models import Customer
 from tariffs.models import Tariff
 from utilities.models import Utility
 
-from .models import CustomerUsage
+from usage.models import CustomerUsage
 
 
 class CustomerUsageTests(TestCase):
