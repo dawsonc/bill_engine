@@ -8,7 +8,6 @@ import datetime
 from decimal import Decimal
 from pathlib import Path
 
-from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from tariffs.models import CustomerCharge, DemandCharge, EnergyCharge, Tariff
@@ -93,9 +92,9 @@ class TariffYAMLExporterTests(TestCase):
 
         # Energy rates should have 5 decimal places
         self.assertIn("rate_usd_per_kwh: 0.15432", yaml_str)
-        # Demand/customer rates should have 2 decimal places
-        self.assertIn("rate_usd_per_kw: 18.5", yaml_str)
-        self.assertIn("usd_per_month: 15.0", yaml_str)
+        # Demand/customer rates should have 2 decimal places (as originally specified)
+        self.assertIn("rate_usd_per_kw: 18.50", yaml_str)
+        self.assertIn("usd_per_month: 15.00", yaml_str)
 
     def test_export_null_dates(self):
         """Test that null dates are exported as null."""
@@ -124,17 +123,17 @@ class TariffYAMLImporterTests(TestCase):
     def setUp(self):
         """Create utility for import tests."""
         self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
-        self.fixtures_dir = Path(__file__).parent / 'fixtures'
+        self.fixtures_dir = Path(__file__).parent / "fixtures"
 
     def test_import_valid_tariffs(self):
         """Test importing valid YAML file."""
-        yaml_content = (self.fixtures_dir / 'valid_tariffs.yaml').read_text()
+        yaml_content = (self.fixtures_dir / "valid_tariffs.yaml").read_text()
         importer = TariffYAMLImporter(yaml_content)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['created']), 2)
-        self.assertEqual(len(results['errors']), 0)
-        self.assertEqual(len(results['skipped']), 0)
+        self.assertEqual(len(results["created"]), 2)
+        self.assertEqual(len(results["errors"]), 0)
+        self.assertEqual(len(results["skipped"]), 0)
 
         # Check first tariff
         tariff1 = Tariff.objects.get(name="B-19 Secondary")
@@ -153,36 +152,36 @@ class TariffYAMLImporterTests(TestCase):
 
     def test_import_invalid_yaml_syntax(self):
         """Test that invalid YAML syntax is caught."""
-        yaml_content = (self.fixtures_dir / 'invalid_yaml.yaml').read_text()
+        yaml_content = (self.fixtures_dir / "invalid_yaml.yaml").read_text()
         importer = TariffYAMLImporter(yaml_content)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['created']), 0)
-        self.assertEqual(len(results['errors']), 1)
-        self.assertIn('YAML File', results['errors'][0][0])
-        self.assertIn('Invalid YAML syntax', results['errors'][0][1][0])
+        self.assertEqual(len(results["created"]), 0)
+        self.assertEqual(len(results["errors"]), 1)
+        self.assertIn("YAML File", results["errors"][0][0])
+        self.assertIn("Invalid YAML syntax", results["errors"][0][1][0])
 
     def test_import_missing_required_field(self):
         """Test that missing required fields are caught."""
-        yaml_content = (self.fixtures_dir / 'invalid_schema.yaml').read_text()
+        yaml_content = (self.fixtures_dir / "invalid_schema.yaml").read_text()
         importer = TariffYAMLImporter(yaml_content)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['created']), 0)
-        self.assertEqual(len(results['errors']), 1)
-        self.assertIn('Missing required field: name', results['errors'][0][1][0])
+        self.assertEqual(len(results["created"]), 0)
+        self.assertEqual(len(results["errors"]), 1)
+        self.assertIn("Missing required field: name", results["errors"][0][1][0])
 
     def test_import_validation_error(self):
         """Test that model validation errors are caught."""
-        yaml_content = (self.fixtures_dir / 'invalid_validation.yaml').read_text()
+        yaml_content = (self.fixtures_dir / "invalid_validation.yaml").read_text()
         importer = TariffYAMLImporter(yaml_content)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['created']), 0)
-        self.assertEqual(len(results['errors']), 1)
+        self.assertEqual(len(results["created"]), 0)
+        self.assertEqual(len(results["errors"]), 1)
         # Should contain validation error about time ordering
-        error_msg = results['errors'][0][1][0]
-        self.assertIn('period_end_time_local', error_msg.lower())
+        error_msg = results["errors"][0][1][0]
+        self.assertIn("period_end_time_local", error_msg.lower())
 
     def test_import_utility_not_found(self):
         """Test that missing utility is caught."""
@@ -197,39 +196,37 @@ tariffs:
         importer = TariffYAMLImporter(yaml_content)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['created']), 0)
-        self.assertEqual(len(results['errors']), 1)
-        self.assertIn("Utility 'NonExistent Utility' not found", results['errors'][0][1][0])
+        self.assertEqual(len(results["created"]), 0)
+        self.assertEqual(len(results["errors"]), 1)
+        self.assertIn("Utility 'NonExistent Utility' not found", results["errors"][0][1][0])
 
     def test_import_duplicate_skip_mode(self):
         """Test skipping duplicate tariffs when replace_existing=False."""
         # Create existing tariff
         Tariff.objects.create(name="B-19", utility=self.utility)
 
-        yaml_content = (self.fixtures_dir / 'duplicate_tariffs.yaml').read_text()
+        yaml_content = (self.fixtures_dir / "duplicate_tariffs.yaml").read_text()
         importer = TariffYAMLImporter(yaml_content, replace_existing=False)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['created']), 0)
-        self.assertEqual(len(results['skipped']), 1)
-        self.assertIn('B-19', results['skipped'][0][0])
+        self.assertEqual(len(results["created"]), 0)
+        self.assertEqual(len(results["skipped"]), 1)
+        self.assertIn("B-19", results["skipped"][0][0])
 
     def test_import_duplicate_replace_mode(self):
         """Test replacing duplicate tariffs when replace_existing=True."""
         # Create existing tariff with different charges
         tariff = Tariff.objects.create(name="B-19", utility=self.utility)
         CustomerCharge.objects.create(
-            tariff=tariff,
-            name="Old Charge",
-            usd_per_month=Decimal("10.00")
+            tariff=tariff, name="Old Charge", usd_per_month=Decimal("10.00")
         )
 
-        yaml_content = (self.fixtures_dir / 'duplicate_tariffs.yaml').read_text()
+        yaml_content = (self.fixtures_dir / "duplicate_tariffs.yaml").read_text()
         importer = TariffYAMLImporter(yaml_content, replace_existing=True)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['updated']), 1)
-        self.assertEqual(len(results['skipped']), 0)
+        self.assertEqual(len(results["updated"]), 1)
+        self.assertEqual(len(results["skipped"]), 0)
 
         # Check that old charges were replaced
         tariff.refresh_from_db()
@@ -253,7 +250,7 @@ tariffs:
         importer = TariffYAMLImporter(yaml_content)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['created']), 1)
+        self.assertEqual(len(results["created"]), 1)
         tariff = Tariff.objects.get(name="Test Tariff")
         charge = tariff.energy_charges.first()
         self.assertEqual(charge.period_start_time_local, datetime.time(12, 0))
@@ -276,7 +273,7 @@ tariffs:
         importer = TariffYAMLImporter(yaml_content)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['created']), 1)
+        self.assertEqual(len(results["created"]), 1)
         charge = EnergyCharge.objects.first()
         self.assertTrue(charge.applies_weekdays)
         self.assertTrue(charge.applies_weekends)
@@ -295,7 +292,7 @@ tariffs:
         importer = TariffYAMLImporter(yaml_content)
         results = importer.import_tariffs()
 
-        self.assertEqual(len(results['created']), 1)
+        self.assertEqual(len(results["created"]), 1)
         tariff = Tariff.objects.get(name="Test Tariff")
         self.assertEqual(tariff.energy_charges.count(), 0)
         self.assertEqual(tariff.demand_charges.count(), 0)
@@ -319,7 +316,7 @@ tariffs:
         results = importer.import_tariffs()
 
         # Should have error and no tariffs created
-        self.assertEqual(len(results['errors']), 1)
+        self.assertEqual(len(results["errors"]), 1)
         self.assertEqual(Tariff.objects.count(), 0)
         self.assertEqual(EnergyCharge.objects.count(), 0)
 
@@ -378,8 +375,8 @@ class TariffYAMLRoundtripTests(TestCase):
         results = importer.import_tariffs()
 
         # Verify
-        self.assertEqual(len(results['created']), 1)
-        self.assertEqual(len(results['errors']), 0)
+        self.assertEqual(len(results["created"]), 1)
+        self.assertEqual(len(results["errors"]), 0)
 
         # Check recreated tariff
         tariff = Tariff.objects.get(name="B-19")
