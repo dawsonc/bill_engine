@@ -1,0 +1,6 @@
+tariffs:
+  - name: "Test Tariff"
+    utility: "PG&E"
+    energy_charges:
+      - name: "Peak Energy
+        rate_usd_per_kwh: 0.15

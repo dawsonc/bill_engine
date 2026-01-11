@@ -1,0 +1,77 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+{{ form.media }}
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:tariffs_tariff_changelist' %}">Tariffs</a>
+  &rsaquo; Import from YAML
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="module">
+  <p>
+    Upload a YAML file containing tariff definitions. The file should include tariffs with their
+    energy charges, demand charges, and customer charges.
+  </p>
+
+  <h2>Requirements:</h2>
+  <ul>
+    <li>Times must be in HH:MM format (e.g., "12:00")</li>
+    <li>Dates must be in YYYY-MM-DD format or null for year-round charges</li>
+    <li>Period end time must be after start time</li>
+    <li>Applicable end date must be on or after start date (when both provided)</li>
+    <li>Utility must exist in database</li>
+    <li>Peak type must be "daily" or "monthly"</li>
+  </ul>
+
+  <p>
+    <a href="{% static 'tariffs/sample_template.yaml' %}" target="_blank">Download sample template</a>
+    with comments and examples.
+  </p>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="module">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="errors">
+    {{ form.non_field_errors }}
+  </div>
+  {% endif %}
+
+  <div class="form-row">
+    <div>
+      <label for="{{ form.yaml_file.id_for_label }}">{{ form.yaml_file.label }}:</label>
+      {{ form.yaml_file }}
+      {% if form.yaml_file.errors %}
+      <p class="errornote">{{ form.yaml_file.errors }}</p>
+      {% endif %}
+      <p class="help">{{ form.yaml_file.help_text }}</p>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      {{ form.replace_existing }}
+      <label for="{{ form.replace_existing.id_for_label }}">{{ form.replace_existing.label }}</label>
+      {% if form.replace_existing.errors %}
+      <p class="errornote">{{ form.replace_existing.errors }}</p>
+      {% endif %}
+      <p class="help">{{ form.replace_existing.help_text }}</p>
+    </div>
+  </div>
+
+  <div class="submit-row">
+    <input type="submit" value="Upload and Import" class="default">
+    <a href="{% url 'admin:tariffs_tariff_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}

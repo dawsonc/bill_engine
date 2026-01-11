@@ -1,6 +1,11 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.http import HttpResponse
+from django.shortcuts import redirect, render
+from django.urls import path
 
+from .forms import TariffYAMLUploadForm
 from .models import CustomerCharge, DemandCharge, EnergyCharge, Tariff
+from .yaml_service import TariffYAMLExporter, TariffYAMLImporter
 
 
 class EnergyChargeInline(admin.TabularInline):
@@ -48,6 +53,8 @@ class TariffAdmin(admin.ModelAdmin):
     list_filter = ["utility"]
     search_fields = ["name", "utility__name"]
     inlines = [EnergyChargeInline, DemandChargeInline, CustomerChargeInline]
+    change_list_template = "admin/tariffs/tariff_changelist.html"
+    actions = ["export_selected_tariffs_to_yaml"]
 
     def charge_count(self, obj):
         energy = obj.energy_charges.count()
@@ -56,6 +63,70 @@ class TariffAdmin(admin.ModelAdmin):
         return f"{energy}/{demand}/{customer}"
 
     charge_count.short_description = "Charges (E/D/C)"
+
+    def get_urls(self):
+        """Add custom URLs for import/export views."""
+        urls = super().get_urls()
+        custom_urls = [
+            path('import/', self.admin_site.admin_view(self.import_tariffs_view),
+                 name='tariffs_tariff_import'),
+            path('export/', self.admin_site.admin_view(self.export_tariffs_view),
+                 name='tariffs_tariff_export'),
+        ]
+        return custom_urls + urls
+
+    def import_tariffs_view(self, request):
+        """Handle YAML import via file upload."""
+        if request.method == 'POST':
+            form = TariffYAMLUploadForm(request.POST, request.FILES)
+            if form.is_valid():
+                yaml_file = form.cleaned_data['yaml_file']
+                replace_existing = form.cleaned_data['replace_existing']
+
+                # Read file content
+                yaml_content = yaml_file.read().decode('utf-8')
+
+                # Import tariffs
+                importer = TariffYAMLImporter(yaml_content, replace_existing=replace_existing)
+                results = importer.import_tariffs()
+
+                # Render results page
+                context = {
+                    **self.admin_site.each_context(request),
+                    'results': results,
+                    'opts': self.model._meta,
+                }
+                return render(request, 'admin/tariffs/tariff_import_result.html', context)
+        else:
+            form = TariffYAMLUploadForm()
+
+        context = {
+            **self.admin_site.each_context(request),
+            'form': form,
+            'opts': self.model._meta,
+            'title': 'Import Tariffs from YAML',
+        }
+        return render(request, 'admin/tariffs/tariff_import.html', context)
+
+    def export_tariffs_view(self, request):
+        """Export all tariffs as YAML download."""
+        tariffs = Tariff.objects.all()
+        exporter = TariffYAMLExporter(tariffs)
+        yaml_str = exporter.export_to_yaml()
+
+        response = HttpResponse(yaml_str, content_type='application/x-yaml')
+        response['Content-Disposition'] = 'attachment; filename="tariffs.yaml"'
+        return response
+
+    @admin.action(description="Export selected tariffs to YAML")
+    def export_selected_tariffs_to_yaml(self, request, queryset):
+        """Export selected tariffs as YAML download."""
+        exporter = TariffYAMLExporter(queryset)
+        yaml_str = exporter.export_to_yaml()
+
+        response = HttpResponse(yaml_str, content_type='application/x-yaml')
+        response['Content-Disposition'] = 'attachment; filename="tariffs_selected.yaml"'
+        return response
 
 
 @admin.register(EnergyCharge)

@@ -6,7 +6,7 @@ from django.test import TestCase
 from tariffs.models import Tariff
 from utilities.models import Utility
 
-from .models import Customer
+from customers.models import Customer
 
 
 class CustomerModelTests(TestCase):
