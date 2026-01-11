@@ -31,6 +31,7 @@ Write a program in a language of your choosing that ingests the usage data and c
 *Out of scope:*
 
 - PDP rates, power factor adjustments, generation credit, franchise fee surcharge, utility users' tax (anything outside of the TOU energy, demand, and customer charges)
+- Current implementation does not handle block rates.
 
 ## Assessment Criteria
 

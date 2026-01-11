@@ -1,6 +1,6 @@
 name,timezone,utility_name,tariff_name
 "Example Corporation",America/Los_Angeles,PG&E,B-19 Secondary
-"Tech Startup Inc",America/New_York,PG&E,E-19 Secondary
-"Manufacturing Co",America/Chicago,PG&E,B-19 Secondary
-"Customer with, Comma in Name",America/Denver,PG&E,B-19 Secondary
-"Retail Store",America/Phoenix,PG&E,B-19 Secondary
+"Tech Startup Inc",America/Los_Angeles,PG&E,E-19 Secondary
+"Manufacturing Co",America/Los_Angeles,PG&E,B-19 Secondary
+"Customer with, Comma in Name",America/Los_Angeles,PG&E,B-19 Secondary
+"Retail Store",America/Los_Angeles,PG&E,B-19 Secondary
