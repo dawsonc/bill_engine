@@ -4,21 +4,21 @@ The analyst should do all of these tasks via the admin pane.
 
 ## Tariff setup
 
-- [ ] As an analyst, I want to view a list of utility tariffs, with the option to search by tariff name or utility name.
+- [x] As an analyst, I want to view a list of utility tariffs, with the option to search by tariff name or utility name.
 
-- [ ] As an analyst, I want to view and edit a single utility tariff (energy, demand, and customers charges). There should be validation that each tariff is in consistent format (e.g. intervals divisible by 5-mins)
+- [x] As an analyst, I want to view and edit a single utility tariff (energy, demand, and customers charges). There should be validation that each tariff is in consistent format (e.g. intervals divisible by 5-mins)
 
-- [ ] As an analyst, I want to add new utility tariffs using a web interface.
+- [x] As an analyst, I want to add new utility tariffs using a web interface.
 
-- [ ] As an analyst, I want to bulk upload new utility tariffs using a YAML format.
+- [x] As an analyst, I want to bulk upload new utility tariffs using a YAML format.
 
 ## Customer setup
 
-- [ ] As an analyst, I want to view a list of customers, with the option to search by name or utility.
+- [x] As an analyst, I want to view a list of customers, with the option to search by name or utility.
 
-- [ ] As an analyst, I want to be able to create, view, and edit individual customer records.
+- [x] As an analyst, I want to be able to create, view, and edit individual customer records.
 
-- [ ] As an analyst, I want to bulk upload new customers using a CSV format.
+- [x] As an analyst, I want to bulk upload new customers using a CSV format.
 
 ## Customer usage data management
 

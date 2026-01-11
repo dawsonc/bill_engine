@@ -23,7 +23,7 @@ A tariff can have zero or more energy, demand, and customer components. It must 
 
 - A customer charge is a $ amount added to each monthly bill regardless of usage.
 
-- Time periods are represented by start and end times. An interval is included in a time period if the start of the interval is strictly before the end time of the period. I.e. Periods from 12:00:00 to 13:59:59 and from 12:00:00 to 14:00:00 will both include the interval starting 13:55:00 and will not include the interval starting 14:00:00. Time periods are represented in local utility time.
+- Time periods are represented by start and end times. An interval is included in a time period if the start of the interval is strictly before the end time of the period. I.e. Periods from 12:00:00 to 13:59:59 and from 12:00:00 to 14:00:00 will both include the interval starting 13:55:00 and will not include the interval starting 14:00:00. Time periods are represented in the customer's local timezone.
 
 Each row represents a tariff and has: columns:
 - name
@@ -73,7 +73,7 @@ utility: "Pacific Gas & Electric"
 energy_charges:
   - name: "Summer Peak Energy"
     rate_usd_per_kwh: 0.15234
-    period_start_time: "12:00:00"  # Local time in utility timezone
+    period_start_time: "12:00:00"  # Local time in customer's timezone
     period_end_time: "18:59:59"
     applies_start_date: "2024-06-01"
     applies_end_date: "2024-09-30"
@@ -140,7 +140,7 @@ customer_charges:
 ```
 
 Notes on the format:
-- Times are specified in the local timezone of the utility
+- Times are specified in the local timezone of the customer
 - Dates use ISO 8601 format (YYYY-MM-DD)
 - Times use HH:MM:SS format in 24-hour notation
 - Use `null` for date fields that don't apply
@@ -161,8 +161,8 @@ Each utility may define a list of holidays. Each row represents a holiday and ha
 
 Each row represents a customer and has columns:
 - Name
+- Timezone (IANA timezone for the customer's location)
 - current_tariff_id (FK)
-- Time zone
 
 For now, we assume that there is a 1-1 relation between customers and meters.
 

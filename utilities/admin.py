@@ -11,7 +11,7 @@ class HolidayInline(admin.TabularInline):
 
 @admin.register(Utility)
 class UtilityAdmin(admin.ModelAdmin):
-    list_display = ["name", "timezone", "holiday_count"]
+    list_display = ["name", "holiday_count"]
     search_fields = ["name"]
     inlines = [HolidayInline]
 

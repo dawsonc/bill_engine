@@ -9,7 +9,6 @@ class Customer(models.Model):
 
     name = models.CharField(max_length=200, help_text="Name of the customer")
     timezone = TimeZoneField(
-        default="America/Los_Angeles",
         help_text="IANA timezone for this customer's location",
     )
     current_tariff = models.ForeignKey(

@@ -9,7 +9,7 @@ from utilities.models import Holiday, Utility
 class HolidayModelTests(TestCase):
     def setUp(self):
         """Create a utility for use in holiday tests."""
-        self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
+        self.utility = Utility.objects.create(name="PG&E")
 
     def test_create_and_str(self):
         """Test creating a holiday and its string representation."""

@@ -1,0 +1,1 @@
+- [ ] Add interval_end to usage, remove documentation of requiring fixed grain as part of the data model.

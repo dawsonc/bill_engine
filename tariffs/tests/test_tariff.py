@@ -11,7 +11,7 @@ from utilities.models import Utility
 class TariffModelTests(TestCase):
     def setUp(self):
         """Create a utility for use in tariff tests."""
-        self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
+        self.utility = Utility.objects.create(name="PG&E")
 
     def test_create_and_str(self):
         """Test creating a tariff and its string representation."""

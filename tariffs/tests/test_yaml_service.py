@@ -20,7 +20,7 @@ class TariffYAMLExporterTests(TestCase):
 
     def setUp(self):
         """Create test data for export."""
-        self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
+        self.utility = Utility.objects.create(name="PG&E")
         self.tariff = Tariff.objects.create(name="B-19", utility=self.utility)
 
         # Create charges
@@ -122,7 +122,7 @@ class TariffYAMLImporterTests(TestCase):
 
     def setUp(self):
         """Create utility for import tests."""
-        self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
+        self.utility = Utility.objects.create(name="PG&E")
         self.fixtures_dir = Path(__file__).parent / "fixtures"
 
     def test_import_valid_tariffs(self):
@@ -326,7 +326,7 @@ class TariffYAMLRoundtripTests(TestCase):
 
     def setUp(self):
         """Create test data."""
-        self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
+        self.utility = Utility.objects.create(name="PG&E")
 
     def test_roundtrip_preserves_data(self):
         """Test that exporting then importing preserves all data."""

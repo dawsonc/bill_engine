@@ -11,7 +11,7 @@ from utilities.models import Utility
 class DemandChargeModelTests(TestCase):
     def setUp(self):
         """Create utility and tariff for demand charge tests."""
-        self.utility = Utility.objects.create(name="PG&E", timezone="America/Los_Angeles")
+        self.utility = Utility.objects.create(name="PG&E")
         self.tariff = Tariff.objects.create(name="B-19", utility=self.utility)
 
     def test_create_and_str(self):

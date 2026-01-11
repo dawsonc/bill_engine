@@ -1,0 +1,149 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:customers_customer_changelist' %}">Customers</a>
+  &rsaquo; Import Results
+</div>
+{% endblock %}
+
+{% block content %}
+
+{% if results.created %}
+<div class="module">
+  <h2>Successfully Created ({{ results.created|length }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Customer Name</th>
+        <th>Timezone</th>
+        <th>Utility</th>
+        <th>Tariff</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for customer in results.created %}
+      <tr>
+        <td><a href="{% url 'admin:customers_customer_change' customer.pk %}">{{ customer.name }}</a></td>
+        <td>{{ customer.timezone }}</td>
+        <td>{{ customer.current_tariff.utility.name }}</td>
+        <td>{{ customer.current_tariff.name }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if results.updated %}
+<div class="module">
+  <h2>Successfully Updated ({{ results.updated|length }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Customer Name</th>
+        <th>Timezone</th>
+        <th>Utility</th>
+        <th>Tariff</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for customer in results.updated %}
+      <tr>
+        <td><a href="{% url 'admin:customers_customer_change' customer.pk %}">{{ customer.name }}</a></td>
+        <td>{{ customer.timezone }}</td>
+        <td>{{ customer.current_tariff.utility.name }}</td>
+        <td>{{ customer.current_tariff.name }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if results.skipped %}
+<div class="module">
+  <h2 class="warning">Skipped ({{ results.skipped|length }})</h2>
+  <p>The following customers already exist and were skipped (replace_existing was not checked):</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Customer Name</th>
+        <th>Reason</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for customer_name, reason in results.skipped %}
+      <tr>
+        <td>{{ customer_name }}</td>
+        <td>{{ reason }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if results.errors %}
+<div class="module">
+  <h2 class="errornote">Errors ({{ results.errors|length }})</h2>
+  <p>The following customers could not be imported:</p>
+  {% for customer_identifier, error_messages in results.errors %}
+  <div class="errors">
+    <h3>{{ customer_identifier }}</h3>
+    <ul>
+      {% for error in error_messages %}
+      <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not results.created and not results.updated and not results.skipped and not results.errors %}
+<div class="module">
+  <p>No results to display. The CSV file may have been empty or contained only a header row.</p>
+</div>
+{% endif %}
+
+<div class="submit-row">
+  <a href="{% url 'admin:customers_customer_changelist' %}" class="button default">Back to Customer List</a>
+  <a href="{% url 'admin:customers_customer_import' %}" class="button">Import Another File</a>
+</div>
+
+<style>
+.warning {
+  color: #ba6900;
+}
+.module table {
+  width: 100%;
+  margin-top: 10px;
+}
+.module table th {
+  text-align: left;
+  background: #f8f8f8;
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+}
+.module table td {
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+}
+.errors {
+  background: #ffebe8;
+  border: 1px solid #ba3925;
+  padding: 10px;
+  margin: 10px 0;
+}
+.errors h3 {
+  margin-top: 0;
+  color: #ba3925;
+}
+.errors ul {
+  margin: 5px 0 0 20px;
+}
+</style>
+{% endblock %}
