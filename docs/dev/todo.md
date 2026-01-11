@@ -1,5 +1,2 @@
--[x] Check models
-    -[x] customers
-    -[x] utilities
-    -[x] usage
-    -[x] tariffs
+Check YAML functionality
+    - Why are some times in quotes and some not?

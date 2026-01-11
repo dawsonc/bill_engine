@@ -2,9 +2,9 @@
 {% load i18n static %}
 
 {% block extrahead %}
-  {{ block.super }}
-  <script src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
-  {{ form.media }}
+{{ block.super }}
+<script src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+{{ form.media }}
 {% endblock %}
 
 {% block breadcrumbs %}
@@ -16,8 +16,6 @@
 {% endblock %}
 
 {% block content %}
-<h1>Import Tariffs from YAML</h1>
-
 <div class="module">
   <p>
     Upload a YAML file containing tariff definitions. The file should include tariffs with their
@@ -44,9 +42,9 @@
   {% csrf_token %}
 
   {% if form.non_field_errors %}
-    <div class="errors">
-      {{ form.non_field_errors }}
-    </div>
+  <div class="errors">
+    {{ form.non_field_errors }}
+  </div>
   {% endif %}
 
   <div class="form-row">
@@ -54,7 +52,7 @@
       <label for="{{ form.yaml_file.id_for_label }}">{{ form.yaml_file.label }}:</label>
       {{ form.yaml_file }}
       {% if form.yaml_file.errors %}
-        <p class="errornote">{{ form.yaml_file.errors }}</p>
+      <p class="errornote">{{ form.yaml_file.errors }}</p>
       {% endif %}
       <p class="help">{{ form.yaml_file.help_text }}</p>
     </div>
@@ -65,7 +63,7 @@
       {{ form.replace_existing }}
       <label for="{{ form.replace_existing.id_for_label }}">{{ form.replace_existing.label }}</label>
       {% if form.replace_existing.errors %}
-        <p class="errornote">{{ form.replace_existing.errors }}</p>
+      <p class="errornote">{{ form.replace_existing.errors }}</p>
       {% endif %}
       <p class="help">{{ form.replace_existing.help_text }}</p>
     </div>
