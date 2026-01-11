@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 
 
@@ -69,6 +70,21 @@ class EnergyCharge(models.Model):
         default=True, help_text="Whether this charge applies on weekdays"
     )
 
+    def clean(self):
+        """Validate charge constraints."""
+        # Validate time period
+        if self.period_end_time_local <= self.period_start_time_local:
+            raise ValidationError({
+                'period_end_time_local': 'Period end time must be after period start time.'
+            })
+
+        # Validate date range (only if both dates are provided)
+        if self.applies_start_date and self.applies_end_date:
+            if self.applies_end_date < self.applies_start_date:
+                raise ValidationError({
+                    'applies_end_date': 'Applicable end date must be on or after the start date.'
+                })
+
     class Meta:
         ordering = ["tariff", "name"]
 
@@ -132,6 +148,21 @@ class DemandCharge(models.Model):
         default="monthly",
         help_text="Whether peak is calculated daily or monthly",
     )
+
+    def clean(self):
+        """Validate charge constraints."""
+        # Validate time period
+        if self.period_end_time_local <= self.period_start_time_local:
+            raise ValidationError({
+                'period_end_time_local': 'Period end time must be after period start time.'
+            })
+
+        # Validate date range (only if both dates are provided)
+        if self.applies_start_date and self.applies_end_date:
+            if self.applies_end_date < self.applies_start_date:
+                raise ValidationError({
+                    'applies_end_date': 'Applicable end date must be on or after the start date.'
+                })
 
     class Meta:
         ordering = ["tariff", "name"]
