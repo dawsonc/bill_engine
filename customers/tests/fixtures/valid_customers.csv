@@ -1,4 +1,4 @@
 name,timezone,utility_name,tariff_name
 Customer A,America/Los_Angeles,PG&E,B-19
-Customer B,America/New_York,PG&E,B-19
-Customer C,America/Chicago,PG&E,B-19
+"Customer, With Comma",America/New_York,PG&E,B-19
+Café François,America/Chicago,PG&E,B-19

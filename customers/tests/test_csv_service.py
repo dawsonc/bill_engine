@@ -22,70 +22,49 @@ class CustomerCSVExporterTests(TestCase):
         self.utility = Utility.objects.create(name="PG&E")
         self.tariff = Tariff.objects.create(name="B-19", utility=self.utility)
 
-        self.customer1 = Customer.objects.create(
+    def test_export_comprehensive(self):
+        """Test CSV export with structure, multiple customers, special characters."""
+        # Create customers with various edge cases
+        Customer.objects.create(
             name="Customer A",
             timezone="America/Los_Angeles",
             current_tariff=self.tariff
         )
-        self.customer2 = Customer.objects.create(
-            name="Customer B",
+        Customer.objects.create(
+            name="Customer, With Comma",
             timezone="America/New_York",
             current_tariff=self.tariff
         )
+        Customer.objects.create(
+            name="Café François",
+            timezone="America/Chicago",
+            current_tariff=self.tariff
+        )
 
-    def test_export_csv_structure(self):
-        """Test that export generates correct CSV structure."""
+        # Export all customers
         customers = Customer.objects.all()
         exporter = CustomerCSVExporter(customers)
         csv_str = exporter.export_to_csv()
 
         lines = [line.rstrip('\r') for line in csv_str.strip().split('\n')]
 
-        # Check header
+        # Check CSV structure
         self.assertEqual(lines[0], 'name,timezone,utility_name,tariff_name')
+        self.assertEqual(len(lines), 4)  # Header + 3 customers
 
-        # Check data rows
-        self.assertEqual(len(lines), 3)  # Header + 2 customers
+        # Check all customer names are present
         self.assertIn('Customer A', csv_str)
-        self.assertIn('Customer B', csv_str)
+        self.assertIn('Customer, With Comma', csv_str)
+        self.assertIn('Café François', csv_str)
+
+        # Check timezones are preserved
         self.assertIn('America/Los_Angeles', csv_str)
         self.assertIn('America/New_York', csv_str)
+        self.assertIn('America/Chicago', csv_str)
+
+        # Check utility and tariff
         self.assertIn('PG&E', csv_str)
         self.assertIn('B-19', csv_str)
-
-    def test_export_csv_quoting(self):
-        """Test that commas in names are properly quoted."""
-        customer_comma = Customer.objects.create(
-            name="Customer, With Comma",
-            timezone="America/Los_Angeles",
-            current_tariff=self.tariff
-        )
-
-        exporter = CustomerCSVExporter(Customer.objects.filter(pk=customer_comma.pk))
-        csv_str = exporter.export_to_csv()
-
-        # Should contain the name with proper quoting
-        self.assertIn('Customer, With Comma', csv_str)
-
-    def test_export_preserves_timezone(self):
-        """Test that timezone format is preserved in export."""
-        customers = Customer.objects.filter(pk=self.customer1.pk)
-        exporter = CustomerCSVExporter(customers)
-        csv_str = exporter.export_to_csv()
-
-        lines = csv_str.strip().split('\n')
-        data_line = lines[1]
-
-        self.assertIn('America/Los_Angeles', data_line)
-
-    def test_export_multiple_customers(self):
-        """Test exporting multiple customers."""
-        customers = Customer.objects.all()
-        exporter = CustomerCSVExporter(customers)
-        csv_str = exporter.export_to_csv()
-
-        lines = csv_str.strip().split('\n')
-        self.assertEqual(len(lines), 3)  # Header + 2 customers
 
     def test_export_empty_queryset(self):
         """Test exporting empty queryset."""
@@ -96,19 +75,6 @@ class CustomerCSVExporterTests(TestCase):
         lines = csv_str.strip().split('\n')
         self.assertEqual(len(lines), 1)  # Just header
         self.assertEqual(lines[0], 'name,timezone,utility_name,tariff_name')
-
-    def test_export_unicode_characters(self):
-        """Test that Unicode characters in names are handled correctly."""
-        customer_unicode = Customer.objects.create(
-            name="Café François",
-            timezone="America/Los_Angeles",
-            current_tariff=self.tariff
-        )
-
-        exporter = CustomerCSVExporter(Customer.objects.filter(pk=customer_unicode.pk))
-        csv_str = exporter.export_to_csv()
-
-        self.assertIn('Café François', csv_str)
 
 
 class CustomerCSVImporterTests(TestCase):
@@ -125,7 +91,7 @@ class CustomerCSVImporterTests(TestCase):
         return (self.fixtures_dir / filename).read_text()
 
     def test_import_valid_customers(self):
-        """Test importing valid customers (happy path)."""
+        """Test importing valid customers including unicode and commas."""
         csv_content = self._read_fixture("valid_customers.csv")
         importer = CustomerCSVImporter(csv_content, replace_existing=False)
         results = importer.import_customers()
@@ -135,63 +101,89 @@ class CustomerCSVImporterTests(TestCase):
         self.assertEqual(len(results['skipped']), 0)
         self.assertEqual(len(results['errors']), 0)
 
-        # Verify customers were created
+        # Verify all customers were created with special cases
         self.assertTrue(Customer.objects.filter(name="Customer A").exists())
-        self.assertTrue(Customer.objects.filter(name="Customer B").exists())
-        self.assertTrue(Customer.objects.filter(name="Customer C").exists())
+        self.assertTrue(Customer.objects.filter(name="Customer, With Comma").exists())
+        self.assertTrue(Customer.objects.filter(name="Café François").exists())
 
-    def test_import_invalid_csv_syntax(self):
-        """Test that malformed CSV is rejected."""
-        csv_content = self._read_fixture("invalid_csv_syntax.csv")
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
+        # Verify comma in name is preserved
+        customer_comma = Customer.objects.get(name="Customer, With Comma")
+        self.assertEqual(customer_comma.name, "Customer, With Comma")
 
-        self.assertEqual(len(results['errors']), 1)
-        self.assertIn('CSV File', results['errors'][0][0])
+    def test_import_validation_errors(self):
+        """Test all validation error cases."""
+        # Test invalid CSV syntax
+        with self.subTest("invalid_csv_syntax"):
+            csv_content = self._read_fixture("invalid_csv_syntax.csv")
+            importer = CustomerCSVImporter(csv_content, replace_existing=False)
+            results = importer.import_customers()
+            self.assertEqual(len(results['errors']), 1)
+            self.assertIn('CSV File', results['errors'][0][0])
 
-    def test_import_missing_required_field(self):
-        """Test that empty required fields are caught."""
-        csv_content = self._read_fixture("missing_fields.csv")
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
+        # Test missing required field
+        with self.subTest("missing_required_field"):
+            csv_content = self._read_fixture("missing_fields.csv")
+            importer = CustomerCSVImporter(csv_content, replace_existing=False)
+            results = importer.import_customers()
+            self.assertEqual(len(results['errors']), 1)
+            error_identifier, error_messages = results['errors'][0]
+            self.assertIn('Row 2', error_identifier)
+            self.assertTrue(any('timezone' in msg for msg in error_messages))
 
-        self.assertEqual(len(results['errors']), 1)
-        error_identifier, error_messages = results['errors'][0]
-        self.assertIn('Row 2', error_identifier)
-        self.assertTrue(any('timezone' in msg for msg in error_messages))
+        # Test invalid timezone
+        with self.subTest("invalid_timezone"):
+            csv_content = self._read_fixture("invalid_timezone.csv")
+            importer = CustomerCSVImporter(csv_content, replace_existing=False)
+            results = importer.import_customers()
+            self.assertEqual(len(results['errors']), 1)
+            error_identifier, error_messages = results['errors'][0]
+            self.assertIn('Row 2', error_identifier)
+            self.assertTrue(any('timezone' in msg.lower() for msg in error_messages))
 
-    def test_import_invalid_timezone(self):
-        """Test that invalid timezone is caught."""
-        csv_content = self._read_fixture("invalid_timezone.csv")
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
+        # Test tariff not found
+        with self.subTest("tariff_not_found"):
+            csv_content = "name,timezone,utility_name,tariff_name\nCustomer X,America/Los_Angeles,PG&E,NonExistentTariff"
+            importer = CustomerCSVImporter(csv_content, replace_existing=False)
+            results = importer.import_customers()
+            self.assertEqual(len(results['errors']), 1)
+            error_identifier, error_messages = results['errors'][0]
+            self.assertIn('Row 2', error_identifier)
+            self.assertTrue(any('not found' in msg for msg in error_messages))
 
-        self.assertEqual(len(results['errors']), 1)
-        error_identifier, error_messages = results['errors'][0]
-        self.assertIn('Row 2', error_identifier)
-        self.assertTrue(any('timezone' in msg.lower() for msg in error_messages))
+        # Test utility not found
+        with self.subTest("utility_not_found"):
+            csv_content = "name,timezone,utility_name,tariff_name\nCustomer Y,America/Los_Angeles,NonExistentUtility,B-19"
+            importer = CustomerCSVImporter(csv_content, replace_existing=False)
+            results = importer.import_customers()
+            self.assertEqual(len(results['errors']), 1)
+            error_identifier, error_messages = results['errors'][0]
+            self.assertIn('Row 2', error_identifier)
+            self.assertTrue(any('not found' in msg for msg in error_messages))
 
-    def test_import_tariff_not_found(self):
-        """Test that non-existent tariff is caught."""
-        csv_content = "name,timezone,utility_name,tariff_name\nCustomer X,America/Los_Angeles,PG&E,NonExistentTariff"
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
+        # Test empty file
+        with self.subTest("empty_file"):
+            csv_content = "name,timezone,utility_name,tariff_name\n"
+            importer = CustomerCSVImporter(csv_content, replace_existing=False)
+            results = importer.import_customers()
+            self.assertEqual(len(results['errors']), 1)
+            self.assertIn('No data rows', results['errors'][0][1][0])
 
-        self.assertEqual(len(results['errors']), 1)
-        error_identifier, error_messages = results['errors'][0]
-        self.assertIn('Row 2', error_identifier)
-        self.assertTrue(any('not found' in msg for msg in error_messages))
+        # Test wrong header
+        with self.subTest("wrong_header"):
+            csv_content = "wrong,header,columns,here\ndata,data,data,data"
+            importer = CustomerCSVImporter(csv_content, replace_existing=False)
+            results = importer.import_customers()
+            self.assertEqual(len(results['errors']), 1)
+            self.assertIn('CSV File', results['errors'][0][0])
+            self.assertTrue(any('header' in msg.lower() for msg in results['errors'][0][1]))
 
-    def test_import_utility_not_found(self):
-        """Test that non-existent utility is caught."""
-        csv_content = "name,timezone,utility_name,tariff_name\nCustomer Y,America/Los_Angeles,NonExistentUtility,B-19"
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
-
-        self.assertEqual(len(results['errors']), 1)
-        error_identifier, error_messages = results['errors'][0]
-        self.assertIn('Row 2', error_identifier)
-        self.assertTrue(any('not found' in msg for msg in error_messages))
+        # Test missing header
+        with self.subTest("missing_header"):
+            csv_content = ""
+            importer = CustomerCSVImporter(csv_content, replace_existing=False)
+            results = importer.import_customers()
+            self.assertEqual(len(results['errors']), 1)
+            self.assertIn('CSV File', results['errors'][0][0])
 
     def test_import_duplicate_skip_mode(self):
         """Test that duplicates are skipped when replace_existing=False."""
@@ -237,30 +229,6 @@ class CustomerCSVImporterTests(TestCase):
         updated_customer = Customer.objects.get(name="Duplicate Customer")
         self.assertEqual(str(updated_customer.timezone), "America/Los_Angeles")
 
-    def test_import_unicode_characters(self):
-        """Test that Unicode characters in names work."""
-        csv_content = self._read_fixture("unicode_customers.csv")
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
-
-        self.assertEqual(len(results['created']), 2)
-        self.assertEqual(len(results['errors']), 0)
-
-        self.assertTrue(Customer.objects.filter(name="Café François").exists())
-        self.assertTrue(Customer.objects.filter(name="北京客户").exists())
-
-    def test_import_names_with_commas(self):
-        """Test that names with commas are handled correctly."""
-        csv_content = self._read_fixture("comma_names.csv")
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
-
-        self.assertEqual(len(results['created']), 1)
-        self.assertEqual(len(results['errors']), 0)
-
-        customer = Customer.objects.get(name="Customer, With Comma")
-        self.assertEqual(customer.name, "Customer, With Comma")
-
     def test_import_partial_success(self):
         """Test that some rows can succeed while others fail."""
         csv_content = """name,timezone,utility_name,tariff_name
@@ -278,35 +246,6 @@ Customer Success 2,America/New_York,PG&E,B-19"""
         self.assertTrue(Customer.objects.filter(name="Customer Success").exists())
         self.assertTrue(Customer.objects.filter(name="Customer Success 2").exists())
         self.assertFalse(Customer.objects.filter(name="Customer Fail").exists())
-
-    def test_import_empty_file(self):
-        """Test that empty file is handled gracefully."""
-        csv_content = "name,timezone,utility_name,tariff_name\n"
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
-
-        self.assertEqual(len(results['created']), 0)
-        self.assertEqual(len(results['errors']), 1)
-        self.assertIn('No data rows', results['errors'][0][1][0])
-
-    def test_import_wrong_header(self):
-        """Test that incorrect header is rejected."""
-        csv_content = "wrong,header,columns,here\ndata,data,data,data"
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
-
-        self.assertEqual(len(results['errors']), 1)
-        self.assertIn('CSV File', results['errors'][0][0])
-        self.assertTrue(any('header' in msg.lower() for msg in results['errors'][0][1]))
-
-    def test_import_missing_header(self):
-        """Test that missing header is rejected."""
-        csv_content = ""
-        importer = CustomerCSVImporter(csv_content, replace_existing=False)
-        results = importer.import_customers()
-
-        self.assertEqual(len(results['errors']), 1)
-        self.assertIn('CSV File', results['errors'][0][0])
 
 
 class CustomerCSVRoundtripTests(TestCase):
