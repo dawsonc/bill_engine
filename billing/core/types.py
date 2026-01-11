@@ -128,9 +128,9 @@ class BillLineItem:
     One billed line item, suitable for display and reconciliation.
     """
 
-    charge_id: ChargeId = field(default_factory=ChargeId)
     description: str
     amount: Decimal
+    charge_id: ChargeId = field(default_factory=ChargeId)
 
 
 @dataclass(frozen=True, slots=True)
