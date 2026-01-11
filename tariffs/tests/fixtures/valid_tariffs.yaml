@@ -1,0 +1,55 @@
+tariffs:
+  - name: "B-19 Secondary"
+    utility: "PG&E"
+    energy_charges:
+      - name: "Summer Peak Energy"
+        rate_usd_per_kwh: 0.15432
+        period_start_time_local: "12:00"
+        period_end_time_local: "18:00"
+        applies_start_date: "2024-06-01"
+        applies_end_date: "2024-09-30"
+        applies_weekdays: true
+        applies_weekends: false
+        applies_holidays: false
+      - name: "Summer Off-Peak Energy"
+        rate_usd_per_kwh: 0.09876
+        period_start_time_local: "00:00"
+        period_end_time_local: "12:00"
+        applies_start_date: "2024-06-01"
+        applies_end_date: "2024-09-30"
+        applies_weekdays: true
+        applies_weekends: true
+        applies_holidays: true
+    demand_charges:
+      - name: "Summer Peak Demand"
+        rate_usd_per_kw: 18.50
+        period_start_time_local: "12:00"
+        period_end_time_local: "18:00"
+        peak_type: "monthly"
+        applies_start_date: "2024-06-01"
+        applies_end_date: "2024-09-30"
+        applies_weekdays: true
+        applies_weekends: false
+        applies_holidays: false
+    customer_charges:
+      - name: "Basic Service"
+        usd_per_month: 15.00
+      - name: "Meter Charge"
+        usd_per_month: 5.00
+
+  - name: "E-19 Secondary"
+    utility: "PG&E"
+    energy_charges:
+      - name: "Winter Energy"
+        rate_usd_per_kwh: 0.12345
+        period_start_time_local: "00:00"
+        period_end_time_local: "23:59"
+        applies_start_date: null
+        applies_end_date: null
+        applies_weekdays: true
+        applies_weekends: true
+        applies_holidays: true
+    demand_charges: []
+    customer_charges:
+      - name: "Customer Charge"
+        usd_per_month: 20.00
