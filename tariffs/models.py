@@ -45,10 +45,10 @@ class EnergyCharge(models.Model):
         help_text="Rate in $/kWh",
     )
     period_start_time_local = models.TimeField(
-        help_text="Start time of the period in utility local time (inclusive)"
+        help_text="Start time of the period in customer's local time (inclusive)"
     )
     period_end_time_local = models.TimeField(
-        help_text="End time of the period in utility local time (exclusive of the next minute)"
+        help_text="End time of the period in customer's local time (exclusive of the next minute)"
     )
     applies_start_date = models.DateField(
         null=True,
@@ -118,10 +118,10 @@ class DemandCharge(models.Model):
         help_text="Rate in $/kW",
     )
     period_start_time_local = models.TimeField(
-        help_text="Start time of the period in utility local time (inclusive)"
+        help_text="Start time of the period in customer's local time (inclusive)"
     )
     period_end_time_local = models.TimeField(
-        help_text="End time of the period in utility local time (exclusive of the next minute)"
+        help_text="End time of the period in customer's local time (exclusive of the next minute)"
     )
     applies_start_date = models.DateField(
         null=True,

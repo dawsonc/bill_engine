@@ -1,5 +1,4 @@
 from django.db import models
-from timezone_field import TimeZoneField
 
 
 class Utility(models.Model):
@@ -8,7 +7,6 @@ class Utility(models.Model):
     """
 
     name = models.CharField(max_length=200, unique=True, help_text="Name of the utility company")
-    timezone = TimeZoneField(help_text="IANA timezone for this utility's service area")
 
     class Meta:
         verbose_name_plural = "Utilities"
