@@ -1,0 +1,78 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+{{ form.media }}
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:customers_customer_changelist' %}">Customers</a>
+  &rsaquo; Import from CSV
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="module">
+  <p>
+    Upload a CSV file containing customer definitions. The file should include customer name,
+    timezone, and tariff information.
+  </p>
+
+  <h2>Requirements:</h2>
+  <ul>
+    <li>CSV must have header row: <code>name,timezone,utility_name,tariff_name</code></li>
+    <li>All fields are required (no empty values allowed)</li>
+    <li>Timezone must be valid IANA timezone (e.g., "America/Los_Angeles")</li>
+    <li>Utility and tariff must exist in database</li>
+    <li>Names containing commas must be quoted in CSV format</li>
+    <li>File must be UTF-8 encoded</li>
+    <li>Maximum file size: 10MB</li>
+  </ul>
+
+  <p>
+    <a href="{% static 'customers/sample_template.csv' %}" download>Download sample template</a>
+    with example data.
+  </p>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="module">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="errors">
+    {{ form.non_field_errors }}
+  </div>
+  {% endif %}
+
+  <div class="form-row">
+    <div>
+      <label for="{{ form.csv_file.id_for_label }}">{{ form.csv_file.label }}:</label>
+      {{ form.csv_file }}
+      {% if form.csv_file.errors %}
+      <p class="errornote">{{ form.csv_file.errors }}</p>
+      {% endif %}
+      <p class="help">{{ form.csv_file.help_text }}</p>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      {{ form.replace_existing }}
+      <label for="{{ form.replace_existing.id_for_label }}">{{ form.replace_existing.label }}</label>
+      {% if form.replace_existing.errors %}
+      <p class="errornote">{{ form.replace_existing.errors }}</p>
+      {% endif %}
+      <p class="help">{{ form.replace_existing.help_text }}</p>
+    </div>
+  </div>
+
+  <div class="submit-row">
+    <input type="submit" value="Upload and Import" class="default">
+    <a href="{% url 'admin:customers_customer_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}
