@@ -25,7 +25,7 @@ The YAML file has a top-level `tariffs` key containing a list of tariff objects.
 - `customer_charges` - List of customer charges (optional)
 
 ### Format Conventions
-- **Times**: `HH:MM` format (e.g., "12:00" for noon)
+- **Times**: `HH:MM` format (e.g., "12:00" for noon). All times are specified in the local time of the customer facility (time zone is tracked on a per-customer basis).
 - **Dates**: `YYYY-MM-DD` format, or `null` for year-round charges
 - **Decimals**: Energy rates have up to 5 decimal places, demand/customer charges have 2
 - **Booleans**: `true`/`false` for `applies_weekdays`, `applies_weekends`, `applies_holidays` (all default to `true` if omitted)
