@@ -184,6 +184,7 @@ def validate_usage_dataframe(usage: pd.DataFrame) -> None:
         "interval_end",
         "kwh",
         "kw",
+        "is_weekday",
         "is_weekend",
         "is_holiday",
     ]
