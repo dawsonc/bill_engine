@@ -37,6 +37,9 @@ class ApplicabilityRule:
         - date range (start_date/end_date),
         - day categories (day_types).
 
+    Time ranges are inclusive of start and exclusive of end.
+    Date ranges are inclusive of both start and end.
+
     Notes:
         - If a field is None/empty, it is treated as 'no constraint' for that dimension.
         - period_start/period_end are interpreted as local clock times.

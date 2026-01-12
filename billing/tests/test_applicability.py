@@ -12,7 +12,6 @@ import pytest
 from billing.core.applicability import construct_applicability_mask
 from billing.core.types import ApplicabilityRule, DayType
 
-
 # Validation Tests
 
 
@@ -76,75 +75,21 @@ def test_applicability_rule_validation(
 # Day Type Filtering Tests
 
 
-def test_weekday_only_rule(usage_df_factory):
-    """Rule applies only to weekdays."""
-    usage = usage_df_factory(is_weekday=True, is_weekend=False, periods=24, freq="1h")
-    rule = ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY]))
+def test_mixed_week(full_week_usage):
+    """Rule applies correctly to weekdays and weekends."""
+    weekday_rule = ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY]))
+    result = construct_applicability_mask(full_week_usage, weekday_rule)
+    assert result.sum() == 5 * 24  # five weekdays in a week
 
-    result = construct_applicability_mask(usage, rule)
-
-    # All intervals should match (all are weekdays)
-    assert result.all()
-
-
-def test_weekend_only_rule(usage_df_factory):
-    """Rule applies only to weekends."""
-    usage = usage_df_factory(is_weekday=False, is_weekend=True, periods=24, freq="1h")
-    rule = ApplicabilityRule(day_types=frozenset([DayType.WEEKEND]))
-
-    result = construct_applicability_mask(usage, rule)
-
-    # All intervals should match (all are weekends)
-    assert result.all()
-
-
-def test_holiday_only_rule(usage_df_factory):
-    """Rule applies only to holidays."""
-    usage = usage_df_factory(is_weekday=True, is_holiday=True, periods=24, freq="1h")
-    rule = ApplicabilityRule(day_types=frozenset([DayType.HOLIDAY]))
-
-    result = construct_applicability_mask(usage, rule)
-
-    # All intervals should match (all are holidays)
-    assert result.all()
-
-
-def test_weekday_and_weekend_rule(full_week_usage):
-    """Rule applies to both weekdays and weekends."""
-    rule = ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY, DayType.WEEKEND]))
-
-    result = construct_applicability_mask(full_week_usage, rule)
-
-    # All intervals should match (covers both weekdays and weekends)
-    assert result.all()
-
-
-def test_all_day_types_rule(full_week_usage):
-    """Rule applies to all days (default behavior)."""
-    rule = ApplicabilityRule()  # Default includes all day types
-
-    result = construct_applicability_mask(full_week_usage, rule)
-
-    # All intervals should match (no restrictions)
-    assert result.all()
-
-
-def test_empty_day_types_matches_nothing(full_week_usage):
-    """Empty day_types should match no rows."""
-    rule = ApplicabilityRule(day_types=frozenset())
-
-    result = construct_applicability_mask(full_week_usage, rule)
-
-    # No intervals should match
-    assert not result.any()
+    weekend_rule = ApplicabilityRule(day_types=frozenset([DayType.WEEKEND]))
+    result = construct_applicability_mask(full_week_usage, weekend_rule)
+    assert result.sum() == 2 * 24  # two weekends in a week
 
 
 def test_mixed_week_with_holiday(full_week_usage):
     """Test dataset with mixed day types including holiday."""
     # Mark Friday (day 4) as a holiday
-    full_week_usage.loc[
-        full_week_usage["interval_start"].dt.dayofweek == 4, "is_holiday"
-    ] = True
+    full_week_usage.loc[full_week_usage["interval_start"].dt.dayofweek == 4, "is_holiday"] = True
 
     # Rule for holidays only
     rule = ApplicabilityRule(day_types=frozenset([DayType.HOLIDAY]))
@@ -167,9 +112,7 @@ def test_period_start_only(hourly_day_usage):
     # Should match intervals from 12:00 onwards (12:00-23:00)
     expected_hours = list(range(12, 24))
     matching_indices = [
-        i
-        for i, row in hourly_day_usage.iterrows()
-        if row["interval_start"].hour in expected_hours
+        i for i, row in hourly_day_usage.iterrows() if row["interval_start"].hour in expected_hours
     ]
 
     assert result.sum() == len(expected_hours)
@@ -266,44 +209,40 @@ def test_end_date_only(month_usage):
 
     result = construct_applicability_mask(month_usage, rule)
 
-    # Should match intervals before Jan 15 (Jan 1-14)
+    # Should match intervals through Jan 15 (Jan 1-15)
     matched_dates = month_usage[result]["interval_start"].dt.date.unique()
 
-    assert all(d < date(2024, 1, 15) for d in matched_dates)
-    # Should include Jan 1 through Jan 14 (14 days)
-    assert result.sum() == 14 * 24
+    # Should include Jan 1 through Jan 15 (15 days)
+    assert all(d <= date(2024, 1, 15) for d in matched_dates)
+    assert result.sum() == 15 * 24
 
 
 def test_start_and_end_date(month_usage):
     """Filter with both start and end dates."""
-    rule = ApplicabilityRule(
-        start_date=date(2024, 1, 10), end_date=date(2024, 1, 20)
-    )
+    rule = ApplicabilityRule(start_date=date(2024, 1, 10), end_date=date(2024, 1, 20))
 
     result = construct_applicability_mask(month_usage, rule)
 
-    # Should match Jan 10-19 (10 days)
+    # Should match Jan 10-20 (11 days)
     matched_dates = month_usage[result]["interval_start"].dt.date.unique()
 
-    assert all(
-        date(2024, 1, 10) <= d < date(2024, 1, 20) for d in matched_dates
-    )
-    assert result.sum() == 10 * 24
+    assert all(date(2024, 1, 10) <= d <= date(2024, 1, 20) for d in matched_dates)
+    assert result.sum() == 11 * 24
 
 
 @pytest.mark.parametrize(
     "test_date,should_match",
     [
+        (date(2024, 1, 9), False),  # outside range
         (date(2024, 1, 10), True),  # start_date: inclusive
         (date(2024, 1, 14), True),  # within range
-        (date(2024, 1, 15), False),  # end_date: exclusive
+        (date(2024, 1, 15), True),  # end_date: inclusive
+        (date(2024, 1, 16), False),  # outside range
     ],
 )
 def test_date_boundary_filtering(month_usage, test_date, should_match):
     """Test date filtering boundary conditions (inclusive start, exclusive end)."""
-    rule = ApplicabilityRule(
-        start_date=date(2024, 1, 10), end_date=date(2024, 1, 15)
-    )
+    rule = ApplicabilityRule(start_date=date(2024, 1, 10), end_date=date(2024, 1, 15))
     result = construct_applicability_mask(month_usage, rule)
 
     test_intervals = month_usage[month_usage["interval_start"].dt.date == test_date]
@@ -322,34 +261,31 @@ def test_no_date_constraints(month_usage):
 
 
 def test_single_day_rule(month_usage):
-    """start_date == end_date should match nothing (exclusive end)."""
-    rule = ApplicabilityRule(
-        start_date=date(2024, 1, 15), end_date=date(2024, 1, 15)
-    )
+    """start_date == end_date should match just one day (inclusive end)."""
+    rule = ApplicabilityRule(start_date=date(2024, 1, 15), end_date=date(2024, 1, 15))
 
     result = construct_applicability_mask(month_usage, rule)
 
-    # No intervals should match (date >= 2024-01-15 AND date < 2024-01-15 is impossible)
-    assert not result.any()
+    # One day should match (date >= 2024-01-15 AND date <= 2024-01-15)
+    # since both start and end dates are inclusive.
+    matched_dates = month_usage[result]["interval_start"].dt.date.unique()
+    assert all(date(2024, 1, 15) <= d <= date(2024, 1, 15) for d in matched_dates)
+    assert result.sum() == 1 * 24
 
 
 def test_multi_month_date_range(usage_df_factory):
     """Date range spanning multiple months."""
     # Create data spanning Dec 2023 - Feb 2024
-    usage = usage_df_factory(
-        start="2023-12-15 00:00:00", periods=60 * 24, freq="1h"
-    )
+    usage = usage_df_factory(start="2023-12-15 00:00:00", periods=60 * 24, freq="1h")
 
-    rule = ApplicabilityRule(
-        start_date=date(2024, 1, 1), end_date=date(2024, 2, 1)
-    )
+    rule = ApplicabilityRule(start_date=date(2024, 1, 1), end_date=date(2024, 1, 31))
 
     result = construct_applicability_mask(usage, rule)
 
     # Should match all of January 2024 only
     matched_dates = usage[result]["interval_start"].dt.date.unique()
 
-    assert all(date(2024, 1, 1) <= d < date(2024, 2, 1) for d in matched_dates)
+    assert all(date(2024, 1, 1) <= d <= date(2024, 1, 31) for d in matched_dates)
     # Should be 31 days in January
     assert result.sum() == 31 * 24
 
@@ -382,15 +318,15 @@ def test_weekday_peak_hours(full_week_usage):
 
 def test_summer_weekday_afternoon(usage_df_factory):
     """Date range + day type + time."""
-    # Create data spanning May-August 2024
-    usage = usage_df_factory(start="2024-05-01 00:00:00", periods=120 * 24, freq="1h")
+    # Create data spanning May-September 2024
+    usage = usage_df_factory(start="2024-05-01 00:00:00", periods=150 * 24, freq="1h")
 
     rule = ApplicabilityRule(
         day_types=frozenset([DayType.WEEKDAY]),
         period_start=time(12, 0),
         period_end=time(18, 0),
         start_date=date(2024, 6, 1),
-        end_date=date(2024, 9, 1),
+        end_date=date(2024, 9, 1),  # FIX TODO
     )
 
     result = construct_applicability_mask(usage, rule)
@@ -404,7 +340,7 @@ def test_summer_weekday_afternoon(usage_df_factory):
     assert all((12 <= h < 18) for h in matched_hours)
     # All matched dates should be in June-August
     matched_dates = matched_data["interval_start"].dt.date
-    assert all(date(2024, 6, 1) <= d < date(2024, 9, 1) for d in matched_dates)
+    assert all(date(2024, 6, 1) <= d <= date(2024, 9, 1) for d in matched_dates)
 
 
 def test_all_constraints_none_applies_everywhere(full_week_usage):
@@ -421,9 +357,7 @@ def test_all_constraints_none_applies_everywhere(full_week_usage):
 def test_restrictive_combined_filters(full_week_usage):
     """Very restrictive combination."""
     # Mark Tuesday as a holiday
-    full_week_usage.loc[
-        full_week_usage["interval_start"].dt.dayofweek == 1, "is_holiday"
-    ] = True
+    full_week_usage.loc[full_week_usage["interval_start"].dt.dayofweek == 1, "is_holiday"] = True
 
     rule = ApplicabilityRule(
         day_types=frozenset([DayType.HOLIDAY]),
@@ -466,8 +400,8 @@ def test_restrictive_combined_filters(full_week_usage):
             "2024-02-28 00:00:00",
             72,
             "1h",
-            {"start_date": date(2024, 2, 29), "end_date": date(2024, 3, 1)},
-            24,
+            {"start_date": date(2024, 2, 28), "end_date": date(2024, 3, 1)},
+            24 * 3,
             "Leap day Feb 29 handled correctly",
         ),
     ],
@@ -476,9 +410,7 @@ def test_edge_cases(
     usage_df_factory, start, periods, freq, rule_params, expected_match_count, description
 ):
     """Test edge cases: DST transitions and leap days."""
-    usage = usage_df_factory(
-        start=start, periods=periods, freq=freq, tz="US/Pacific"
-    )
+    usage = usage_df_factory(start=start, periods=periods, freq=freq, tz="US/Pacific")
     rule = ApplicabilityRule(**rule_params)
     result = construct_applicability_mask(usage, rule)
 

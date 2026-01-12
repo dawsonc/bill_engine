@@ -47,6 +47,6 @@ def construct_applicability_mask(usage: pd.DataFrame, rule: ApplicabilityRule) -
     if rule.start_date:
         rule_mask[~(rule.start_date <= interval_start_dates)] = False
     if rule.end_date:
-        rule_mask[~(interval_start_dates < rule.end_date)] = False
+        rule_mask[~(interval_start_dates <= rule.end_date)] = False
 
     return rule_mask
