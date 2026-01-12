@@ -34,28 +34,28 @@ class CustomerAdmin(admin.ModelAdmin):
         urls = super().get_urls()
         custom_urls = [
             path(
-                'import/',
+                "import/",
                 self.admin_site.admin_view(self.import_customers_view),
-                name='customers_customer_import'
+                name="customers_customer_import",
             ),
             path(
-                'export/',
+                "export/",
                 self.admin_site.admin_view(self.export_customers_view),
-                name='customers_customer_export'
+                name="customers_customer_export",
             ),
         ]
         return custom_urls + urls
 
     def import_customers_view(self, request):
         """Handle CSV import via file upload."""
-        if request.method == 'POST':
+        if request.method == "POST":
             form = CustomerCSVUploadForm(request.POST, request.FILES)
             if form.is_valid():
-                csv_file = form.cleaned_data['csv_file']
-                replace_existing = form.cleaned_data['replace_existing']
+                csv_file = form.cleaned_data["csv_file"]
+                replace_existing = form.cleaned_data["replace_existing"]
 
                 # Read file content
-                csv_content = csv_file.read().decode('utf-8')
+                csv_content = csv_file.read().decode("utf-8")
 
                 # Import customers
                 importer = CustomerCSVImporter(csv_content, replace_existing=replace_existing)
@@ -64,21 +64,21 @@ class CustomerAdmin(admin.ModelAdmin):
                 # Render results page
                 context = {
                     **self.admin_site.each_context(request),
-                    'results': results,
-                    'opts': self.model._meta,
-                    'title': 'CSV Import Results',
+                    "results": results,
+                    "opts": self.model._meta,
+                    "title": "CSV Import Results",
                 }
-                return render(request, 'admin/customers/customer_import_result.html', context)
+                return render(request, "admin/customers/customer_import_result.html", context)
         else:
             form = CustomerCSVUploadForm()
 
         context = {
             **self.admin_site.each_context(request),
-            'form': form,
-            'opts': self.model._meta,
-            'title': 'Import Customers from CSV',
+            "form": form,
+            "opts": self.model._meta,
+            "title": "Import Customers from CSV",
         }
-        return render(request, 'admin/customers/customer_import.html', context)
+        return render(request, "admin/customers/customer_import.html", context)
 
     def export_customers_view(self, request):
         """Export all customers as CSV download."""
@@ -86,8 +86,8 @@ class CustomerAdmin(admin.ModelAdmin):
         exporter = CustomerCSVExporter(customers)
         csv_str = exporter.export_to_csv()
 
-        response = HttpResponse(csv_str, content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="customers.csv"'
+        response = HttpResponse(csv_str, content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="customers.csv"'
         return response
 
     @admin.action(description="Export selected customers to CSV")
@@ -96,6 +96,6 @@ class CustomerAdmin(admin.ModelAdmin):
         exporter = CustomerCSVExporter(queryset)
         csv_str = exporter.export_to_csv()
 
-        response = HttpResponse(csv_str, content_type='text/csv')
-        response['Content-Disposition'] = 'attachment; filename="customers_selected.csv"'
+        response = HttpResponse(csv_str, content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="customers_selected.csv"'
         return response

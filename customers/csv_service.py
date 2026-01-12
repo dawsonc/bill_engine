@@ -8,6 +8,7 @@ bulk customer uploads and downloads via CSV format.
 import csv
 import io
 import zoneinfo
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
@@ -25,7 +26,7 @@ class CustomerCSVExporter:
         Args:
             customers_queryset: Django queryset of Customer objects to export
         """
-        self.customers = customers_queryset.select_related('current_tariff__utility')
+        self.customers = customers_queryset.select_related("current_tariff__utility")
 
     def export_to_csv(self) -> str:
         """
@@ -35,18 +36,20 @@ class CustomerCSVExporter:
             CSV string representation of customers with header row
         """
         output = io.StringIO()
-        fieldnames = ['name', 'timezone', 'utility_name', 'tariff_name']
+        fieldnames = ["name", "timezone", "utility_name", "tariff_name"]
         writer = csv.DictWriter(output, fieldnames=fieldnames, quoting=csv.QUOTE_MINIMAL)
 
         writer.writeheader()
 
         for customer in self.customers:
-            writer.writerow({
-                'name': customer.name,
-                'timezone': str(customer.timezone),
-                'utility_name': customer.current_tariff.utility.name,
-                'tariff_name': customer.current_tariff.name,
-            })
+            writer.writerow(
+                {
+                    "name": customer.name,
+                    "timezone": str(customer.timezone),
+                    "utility_name": customer.current_tariff.utility.name,
+                    "tariff_name": customer.current_tariff.name,
+                }
+            )
 
         return output.getvalue()
 
@@ -66,10 +69,10 @@ class CustomerCSVImporter:
         self.csv_content = csv_content
         self.replace_existing = replace_existing
         self.results = {
-            'created': [],  # [customer, ...]
-            'updated': [],  # [customer, ...]
-            'skipped': [],  # [(customer_name, reason), ...]
-            'errors': [],   # [(row_identifier, [error_messages]), ...]
+            "created": [],  # [customer, ...]
+            "updated": [],  # [customer, ...]
+            "skipped": [],  # [(customer_name, reason), ...]
+            "errors": [],  # [(row_identifier, [error_messages]), ...]
         }
 
     def import_customers(self) -> dict:
@@ -82,11 +85,11 @@ class CustomerCSVImporter:
         try:
             rows = self._parse_csv()
         except Exception as e:
-            self.results['errors'].append(('CSV File', [str(e)]))
+            self.results["errors"].append(("CSV File", [str(e)]))
             return self.results
 
         if not rows:
-            self.results['errors'].append(('CSV File', ['No data rows found in CSV file']))
+            self.results["errors"].append(("CSV File", ["No data rows found in CSV file"]))
             return self.results
 
         # Import each customer in its own transaction
@@ -128,7 +131,7 @@ class CustomerCSVImporter:
         Raises:
             ValueError: If header is missing or incorrect
         """
-        expected_columns = {'name', 'timezone', 'utility_name', 'tariff_name'}
+        expected_columns = {"name", "timezone", "utility_name", "tariff_name"}
 
         if reader.fieldnames is None:
             raise ValueError("CSV file is empty or has no header row")
@@ -158,47 +161,52 @@ class CustomerCSVImporter:
             row_data: Dictionary of CSV row data
             row_num: Row number for error reporting (1-indexed)
         """
-        customer_name = row_data.get('name', '').strip()
+        customer_name = row_data.get("name", "").strip()
         row_identifier = f"Row {row_num}" + (f": {customer_name}" if customer_name else "")
 
         try:
             # Validate required fields
             errors = []
-            for field in ['name', 'timezone', 'utility_name', 'tariff_name']:
-                if not row_data.get(field, '').strip():
+            for field in ["name", "timezone", "utility_name", "tariff_name"]:
+                if not row_data.get(field, "").strip():
                     errors.append(f"Missing required field '{field}'")
 
             if errors:
-                self.results['errors'].append((row_identifier, errors))
+                self.results["errors"].append((row_identifier, errors))
                 return
 
             # Clean data
-            name = row_data['name'].strip()
-            timezone_str = row_data['timezone'].strip()
-            utility_name = row_data['utility_name'].strip()
-            tariff_name = row_data['tariff_name'].strip()
+            name = row_data["name"].strip()
+            timezone_str = row_data["timezone"].strip()
+            utility_name = row_data["utility_name"].strip()
+            tariff_name = row_data["tariff_name"].strip()
 
             # Validate timezone
             try:
                 zoneinfo.ZoneInfo(timezone_str)
             except zoneinfo.ZoneInfoNotFoundError:
-                self.results['errors'].append((
-                    row_identifier,
-                    [f"Invalid timezone '{timezone_str}'. Must be a valid IANA timezone."]
-                ))
+                self.results["errors"].append(
+                    (
+                        row_identifier,
+                        [f"Invalid timezone '{timezone_str}'. Must be a valid IANA timezone."],
+                    )
+                )
                 return
 
             # Lookup tariff
-            tariff = Tariff.objects.filter(
-                utility__name=utility_name,
-                name=tariff_name
-            ).select_related('utility').first()
+            tariff = (
+                Tariff.objects.filter(utility__name=utility_name, name=tariff_name)
+                .select_related("utility")
+                .first()
+            )
 
             if not tariff:
-                self.results['errors'].append((
-                    row_identifier,
-                    [f"Tariff '{tariff_name}' not found for utility '{utility_name}'"]
-                ))
+                self.results["errors"].append(
+                    (
+                        row_identifier,
+                        [f"Tariff '{tariff_name}' not found for utility '{utility_name}'"],
+                    )
+                )
                 return
 
             # Import customer in atomic transaction
@@ -208,10 +216,9 @@ class CustomerCSVImporter:
 
                 if existing_customer:
                     if not self.replace_existing:
-                        self.results['skipped'].append((
-                            name,
-                            f"Customer already exists (replace_existing not checked)"
-                        ))
+                        self.results["skipped"].append(
+                            (name, "Customer already exists (replace_existing not checked)")
+                        )
                         return
                     else:
                         # Update existing customer
@@ -219,32 +226,28 @@ class CustomerCSVImporter:
                         existing_customer.current_tariff = tariff
                         existing_customer.full_clean()
                         existing_customer.save()
-                        self.results['updated'].append(existing_customer)
+                        self.results["updated"].append(existing_customer)
                 else:
                     # Create new customer
-                    customer = Customer(
-                        name=name,
-                        timezone=timezone_str,
-                        current_tariff=tariff
-                    )
+                    customer = Customer(name=name, timezone=timezone_str, current_tariff=tariff)
                     customer.full_clean()
                     customer.save()
-                    self.results['created'].append(customer)
+                    self.results["created"].append(customer)
 
         except ValidationError as e:
             # Extract validation error messages
             error_messages = []
-            if hasattr(e, 'message_dict'):
+            if hasattr(e, "message_dict"):
                 for field, messages in e.message_dict.items():
                     for message in messages:
                         error_messages.append(f"{field}: {message}")
-            elif hasattr(e, 'messages'):
+            elif hasattr(e, "messages"):
                 error_messages.extend(e.messages)
             else:
                 error_messages.append(str(e))
 
-            self.results['errors'].append((row_identifier, error_messages))
+            self.results["errors"].append((row_identifier, error_messages))
 
         except Exception as e:
             # Catch any unexpected errors
-            self.results['errors'].append((row_identifier, [str(e)]))
+            self.results["errors"].append((row_identifier, [str(e)]))

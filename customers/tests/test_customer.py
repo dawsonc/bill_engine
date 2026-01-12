@@ -3,10 +3,9 @@ import time
 from django.db.models import ProtectedError
 from django.test import TestCase
 
+from customers.models import Customer
 from tariffs.models import Tariff
 from utilities.models import Utility
-
-from customers.models import Customer
 
 
 class CustomerModelTests(TestCase):
@@ -17,20 +16,26 @@ class CustomerModelTests(TestCase):
 
     def test_create_and_str(self):
         """Test creating a customer and its string representation."""
-        customer = Customer.objects.create(name="Acme Corp", timezone="America/Los_Angeles", current_tariff=self.tariff)
+        customer = Customer.objects.create(
+            name="Acme Corp", timezone="America/Los_Angeles", current_tariff=self.tariff
+        )
         self.assertIsNotNone(customer.pk)
         self.assertEqual(str(customer), "Acme Corp")
 
     def test_protect_tariff_with_customers(self):
         """Test that tariffs with customers cannot be deleted (PROTECT)."""
-        Customer.objects.create(name="Acme Corp", timezone="America/Los_Angeles", current_tariff=self.tariff)
+        Customer.objects.create(
+            name="Acme Corp", timezone="America/Los_Angeles", current_tariff=self.tariff
+        )
 
         with self.assertRaises(ProtectedError):
             self.tariff.delete()
 
     def test_auto_timestamps(self):
         """Test that created_at and updated_at are set automatically."""
-        customer = Customer.objects.create(name="Acme Corp", timezone="America/Los_Angeles", current_tariff=self.tariff)
+        customer = Customer.objects.create(
+            name="Acme Corp", timezone="America/Los_Angeles", current_tariff=self.tariff
+        )
 
         # Verify created_at is set
         self.assertIsNotNone(customer.created_at)

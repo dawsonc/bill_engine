@@ -11,7 +11,7 @@ class CustomerCSVUploadForm(forms.Form):
     csv_file = forms.FileField(
         label="CSV File",
         help_text="Upload a .csv file with customer definitions (max 10MB)",
-        widget=forms.FileInput(attrs={'accept': '.csv'})
+        widget=forms.FileInput(attrs={"accept": ".csv"}),
     )
 
     replace_existing = forms.BooleanField(
@@ -19,19 +19,16 @@ class CustomerCSVUploadForm(forms.Form):
         initial=False,
         label="Replace existing customers",
         help_text="If checked, customers with the same name will be updated. "
-                 "Otherwise, they will be skipped with a warning."
+        "Otherwise, they will be skipped with a warning.",
     )
 
     def clean_csv_file(self):
         """Validate file extension and size."""
-        csv_file = self.cleaned_data['csv_file']
+        csv_file = self.cleaned_data["csv_file"]
 
         # Check file extension
-        if not csv_file.name.endswith('.csv'):
-            raise forms.ValidationError(
-                "File must have .csv extension. "
-                f"Received: {csv_file.name}"
-            )
+        if not csv_file.name.endswith(".csv"):
+            raise forms.ValidationError(f"File must have .csv extension. Received: {csv_file.name}")
 
         # Check file size (10MB = 10 * 1024 * 1024 bytes)
         max_size = 10 * 1024 * 1024

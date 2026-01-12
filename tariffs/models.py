@@ -74,16 +74,16 @@ class EnergyCharge(models.Model):
         """Validate charge constraints."""
         # Validate time period
         if self.period_end_time_local <= self.period_start_time_local:
-            raise ValidationError({
-                'period_end_time_local': 'Period end time must be after period start time.'
-            })
+            raise ValidationError(
+                {"period_end_time_local": "Period end time must be after period start time."}
+            )
 
         # Validate date range (only if both dates are provided)
         if self.applies_start_date and self.applies_end_date:
             if self.applies_end_date < self.applies_start_date:
-                raise ValidationError({
-                    'applies_end_date': 'Applicable end date must be on or after the start date.'
-                })
+                raise ValidationError(
+                    {"applies_end_date": "Applicable end date must be on or after the start date."}
+                )
 
     class Meta:
         ordering = ["tariff", "name"]
@@ -153,16 +153,16 @@ class DemandCharge(models.Model):
         """Validate charge constraints."""
         # Validate time period
         if self.period_end_time_local <= self.period_start_time_local:
-            raise ValidationError({
-                'period_end_time_local': 'Period end time must be after period start time.'
-            })
+            raise ValidationError(
+                {"period_end_time_local": "Period end time must be after period start time."}
+            )
 
         # Validate date range (only if both dates are provided)
         if self.applies_start_date and self.applies_end_date:
             if self.applies_end_date < self.applies_start_date:
-                raise ValidationError({
-                    'applies_end_date': 'Applicable end date must be on or after the start date.'
-                })
+                raise ValidationError(
+                    {"applies_end_date": "Applicable end date must be on or after the start date."}
+                )
 
     class Meta:
         ordering = ["tariff", "name"]
