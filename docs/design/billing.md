@@ -54,23 +54,10 @@ def construct_applicability_mask(usage: pd.DataFrame, rule: ApplicabilityRule) -
 # billing/core/data.py
 
 def fill_missing_data(usage: pd.DataFrame, strategy: str = "extrapolate_last"):
-    # Could also use strategy "interpolate"
-    # Infer grain from data that is available
     ...
 
 
 def validate_usage_dataframe(usage: pd.DataFrame):
-    """
-    Every row in the usage dataframe represents a single interval of usage for one customer (all rows are assumed to be the same customer). There should be columns for:
-        - interval_start: tz-aware datetime in the customer's time zone
-        - interval_end: tz-aware datetime in the customer's time zone
-        - kwh: float
-        - kw: float
-        - is_weekend: bool
-        - is_holiday: bool
-
-    In addition to checking that all required columns are present, check that there is a consistent time grain and no missing data (all imputation must happen upstream).
-    """
     ...
 
 ```
