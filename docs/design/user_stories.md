@@ -22,13 +22,13 @@ The analyst should do all of these tasks via the admin pane.
 
 ## Customer usage data management
 
-- [ ] As an analyst, I want to import customer usage data for a single customer from a CSV. If the data does not come in 5-min increments, it should convert to 5-min increments in kWh/kW for the canonical representation. The CSV should have columns for interval start, interval end, usage, usage unit, peak demand, peak demand units, temperature, temperature units. Newly uploaded data should replace any old usage data for the same intervals.
+- [ ] As an analyst, I want to import customer usage data for a single customer from a CSV. The CSV should have columns for interval start, interval end, usage, usage unit, peak demand, peak demand units, temperature, temperature units. Newly uploaded data should replace any old usage data for the same intervals.
 
 - [ ] As an analyst, I want to import customer usage data for multiple customers by uploading multiple CSVs at once.
 
-- [ ] As an analyst, I want to be able to view a time series of customer usage (energy and peak demand) as a graph that I can filter down to a specific date range. This graph should be part of the page where I view individual customers.
-
 - [ ] As an analyst, I want to be able to see whether a customer is missing data. Each customer page should show a warning with missing data for each month.
+
+- [ ] As an analyst, I want to be able to view a time series of customer usage (energy and peak demand) as a graph that I can filter down to a specific date range. This graph should be part of the page where I view individual customers.
 
 *(Out of scope for now, but we should be able to extend for this)* As an analyst, I want to be able to automatically pull customer data from an external interface like Green Button Connect on a regular schedule (e.g. nightly). *Don't need to implement this now, but keep it in mind for extensibility*
 

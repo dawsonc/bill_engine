@@ -163,19 +163,23 @@ Each row represents a customer and has columns:
 - Name
 - Timezone (IANA timezone for the customer's location)
 - current_tariff_id (FK)
+- billing_interval_minutes
 
 For now, we assume that there is a 1-1 relation between customers and meters.
 
 # CustomerUsage
 
-Each row represents customer usage in a 5-minute interval and has columns:
+Each row represents customer usage in an interval and has columns:
 - customer_id (FK)
 - interval_start_utc (Datetime)
+- interval_end_utc (Datetime)
 - energy_kwh
 - peak_demand_kw
 - temperature_c
 - created_at_utc (Datetime)
 
-The interval has a fixed 5-minute grain. The interval_end is calculated as interval_start_utc + 5 minutes.
+We do not enforce a fixed grain for all customer usage data, since different utilities may use different billing intervals.
+We do require that all usage data for one customer has a consistent grain, based on customer.billing_interval_minutes
+Downstream billing logic is designed to be agnostic to billing intervals.
 
 We enforce the constraint that (customer_id, interval_start_utc) is unique.

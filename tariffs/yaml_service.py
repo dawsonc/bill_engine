@@ -2,7 +2,7 @@
 YAML import/export service for tariffs.
 
 Provides bulk import and export functionality for tariffs with all charge types.
-Validation matches web interface validation from issue #5.
+Validation matches web interface validation.
 """
 
 import datetime
