@@ -1,0 +1,4 @@
+interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+2024-01-15 14:30:00,2024-01-15 14:35:00,5.25,kWh,63.0,kW,22.5,C
+2024-01-15 14:35:00,2024-01-15 14:40:00,5.12,kWh,61.5,kW,22.3,C
+2024-01-15 14:40:00,2024-01-15 14:45:00,5.30,kWh,62.0,kW,22.1,C

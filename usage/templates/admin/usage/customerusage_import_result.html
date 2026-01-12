@@ -1,0 +1,166 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:usage_customerusage_changelist' %}">Customer Usage</a>
+  &rsaquo; Import Results
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="module">
+  <h2>Import Results for Customer: {{ customer.name }}</h2>
+  <p>Customer timezone: {{ customer.timezone }}</p>
+</div>
+
+{% if results.created %}
+<div class="module">
+  <h2 style="color: #0c4b33;">Successfully Created ({{ results.created|length }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Interval Start (UTC)</th>
+        <th>Interval End (UTC)</th>
+        <th>Energy (kWh)</th>
+        <th>Peak Demand (kW)</th>
+        <th>Temperature (°C)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for usage in results.created %}
+      <tr>
+        <td><a href="{% url 'admin:usage_customerusage_change' usage.pk %}">{{ usage.interval_start_utc }}</a></td>
+        <td>{{ usage.interval_end_utc }}</td>
+        <td>{{ usage.energy_kwh }}</td>
+        <td>{{ usage.peak_demand_kw }}</td>
+        <td>{% if usage.temperature_c %}{{ usage.temperature_c }}{% else %}-{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if results.updated %}
+<div class="module">
+  <h2 style="color: #1e5a8e;">Successfully Updated ({{ results.updated|length }})</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Interval Start (UTC)</th>
+        <th>Interval End (UTC)</th>
+        <th>Energy (kWh)</th>
+        <th>Peak Demand (kW)</th>
+        <th>Temperature (°C)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for usage in results.updated %}
+      <tr>
+        <td><a href="{% url 'admin:usage_customerusage_change' usage.pk %}">{{ usage.interval_start_utc }}</a></td>
+        <td>{{ usage.interval_end_utc }}</td>
+        <td>{{ usage.energy_kwh }}</td>
+        <td>{{ usage.peak_demand_kw }}</td>
+        <td>{% if usage.temperature_c %}{{ usage.temperature_c }}{% else %}-{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if results.warnings %}
+<div class="module">
+  <h2 class="warning">Warnings ({{ results.warnings|length }})</h2>
+  <p>The following records were imported successfully, but you should review them:</p>
+  {% for row_identifier, warning_message in results.warnings %}
+  <div class="warning-box">
+    <h3>{{ row_identifier }}</h3>
+    <p>{{ warning_message }}</p>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if results.errors %}
+<div class="module">
+  <h2 class="errornote">Errors ({{ results.errors|length }})</h2>
+  <p>The following records could not be imported:</p>
+  {% for row_identifier, error_messages in results.errors %}
+  <div class="errors">
+    <h3>{{ row_identifier }}</h3>
+    <ul>
+      {% for error in error_messages %}
+      <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not results.created and not results.updated and not results.warnings and not results.errors %}
+<div class="module">
+  <p>No results to display. The CSV file may have been empty or contained only a header row.</p>
+</div>
+{% endif %}
+
+<div class="submit-row">
+  <a href="{% url 'admin:usage_customerusage_changelist' %}" class="button default">Back to Usage List</a>
+  <a href="{% url 'admin:usage_customerusage_import' %}" class="button">Import Another File</a>
+</div>
+
+<style>
+  .warning {
+    color: #ba6900;
+  }
+
+  .warning-box {
+    background: #fff8dc;
+    border: 1px solid #ba6900;
+    padding: 10px;
+    margin: 10px 0;
+  }
+
+  .warning-box h3 {
+    margin-top: 0;
+    color: #ba6900;
+  }
+
+  .module table {
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .module table th {
+    text-align: left;
+    background: #f8f8f8;
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .module table td {
+    padding: 8px;
+    border-bottom: 1px solid #eee;
+  }
+
+  .errors {
+    background: #ffebe8;
+    border: 1px solid #ba3925;
+    padding: 10px;
+    margin: 10px 0;
+  }
+
+  .errors h3 {
+    margin-top: 0;
+    color: #ba3925;
+  }
+
+  .errors ul {
+    margin: 5px 0 0 20px;
+  }
+</style>
+{% endblock %}

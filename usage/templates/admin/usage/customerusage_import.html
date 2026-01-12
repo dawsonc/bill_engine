@@ -1,0 +1,86 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="{% static 'admin/js/vendor/jquery/jquery.js' %}"></script>
+{{ form.media }}
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:usage_customerusage_changelist' %}">Customer Usage</a>
+  &rsaquo; Import from CSV
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="module">
+  <p>
+    Upload a CSV file containing usage data for a single customer. The file should include
+    interval timestamps, energy usage, peak demand, and optional temperature data.
+  </p>
+
+  <h2>Requirements:</h2>
+  <ul>
+    <li>CSV must have header row: <code>interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit</code></li>
+    <li>Select the customer from the dropdown below</li>
+    <li><strong>Timestamp formats supported:</strong>
+      <ul>
+        <li>Naive local time: <code>2024-01-15 14:30:00</code> (interpreted in customer's timezone)</li>
+        <li>UTC with offset: <code>2024-01-15 14:30:00+00:00</code></li>
+        <li>ISO format: <code>2024-01-15T14:30:00Z</code></li>
+      </ul>
+    </li>
+    <li><strong>Units:</strong> usage_unit must be "kWh", peak_demand_unit must be "kW", temperature_unit must be "C" (all case-insensitive)</li>
+    <li>Temperature field is optional (can be empty)</li>
+    <li>Interval duration must match customer's billing_interval_minutes setting</li>
+    <li>Newly uploaded data will replace existing data for the same intervals</li>
+    <li>File must be UTF-8 encoded</li>
+    <li>Maximum file size: 10MB</li>
+  </ul>
+
+  <h3>Example CSV:</h3>
+  <pre>interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+2024-01-15 14:30:00,2024-01-15 14:35:00,5.25,kWh,63.0,kW,22.5,C
+2024-01-15 14:35:00,2024-01-15 14:40:00,5.12,kWh,61.5,kW,22.3,C</pre>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="module">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+  <div class="errors">
+    {{ form.non_field_errors }}
+  </div>
+  {% endif %}
+
+  <div class="form-row">
+    <div>
+      <label for="{{ form.customer.id_for_label }}">{{ form.customer.label }}:</label>
+      {{ form.customer }}
+      {% if form.customer.errors %}
+      <p class="errornote">{{ form.customer.errors }}</p>
+      {% endif %}
+      <p class="help">{{ form.customer.help_text }}</p>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div>
+      <label for="{{ form.csv_file.id_for_label }}">{{ form.csv_file.label }}:</label>
+      {{ form.csv_file }}
+      {% if form.csv_file.errors %}
+      <p class="errornote">{{ form.csv_file.errors }}</p>
+      {% endif %}
+      <p class="help">{{ form.csv_file.help_text }}</p>
+    </div>
+  </div>
+
+  <div class="submit-row">
+    <input type="submit" value="Upload and Import" class="default">
+    <a href="{% url 'admin:usage_customerusage_changelist' %}" class="button cancel-link">Cancel</a>
+  </div>
+</form>
+{% endblock %}
