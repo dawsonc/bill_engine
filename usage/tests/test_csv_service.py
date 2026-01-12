@@ -297,3 +297,67 @@ class UsageCSVImporterTests(TestCase):
 
         self.assertEqual(len(results["errors"]), 1)
         self.assertIn("No data", str(results["errors"][0][1]))
+
+    def test_import_fahrenheit_temperature(self):
+        """Test importing usage data with Fahrenheit temperatures."""
+        csv_content = """interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+2024-01-15 14:30:00,2024-01-15 14:35:00,5.25,kWh,63.0,kW,72.5,F"""
+
+        importer = UsageCSVImporter(csv_content, customer=self.customer)
+        results = importer.import_usage()
+
+        self.assertEqual(len(results["created"]), 1)
+        self.assertEqual(len(results["errors"]), 0)
+
+        # Verify temperature converted to Celsius
+        # 72.5°F should be approximately 22.5°C: (72.5 - 32) * 5/9 = 40.5 * 5/9 = 22.5
+        usage = CustomerUsage.objects.get(customer=self.customer)
+        # Use assertAlmostEqual for decimal comparison
+        self.assertAlmostEqual(float(usage.temperature_c), 22.5, places=1)
+
+    def test_import_mixed_temperature_units(self):
+        """Test importing usage data with mixed C and F in same file."""
+        csv_content = """interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+2024-01-15 14:30:00,2024-01-15 14:35:00,5.25,kWh,63.0,kW,22.5,C
+2024-01-15 14:35:00,2024-01-15 14:40:00,5.12,kWh,61.5,kW,72.5,F"""
+
+        importer = UsageCSVImporter(csv_content, customer=self.customer)
+        results = importer.import_usage()
+
+        self.assertEqual(len(results["created"]), 2)
+        self.assertEqual(len(results["errors"]), 0)
+
+        # Both should be stored as Celsius
+        usage_records = CustomerUsage.objects.filter(customer=self.customer).order_by('interval_start_utc')
+        self.assertAlmostEqual(float(usage_records[0].temperature_c), 22.5, places=1)  # Was already C
+        self.assertAlmostEqual(float(usage_records[1].temperature_c), 22.5, places=1)  # Converted from 72.5°F
+
+    def test_fahrenheit_conversion_precision(self):
+        """Test that Fahrenheit conversion maintains precision."""
+        csv_content = """interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+2024-01-15 14:30:00,2024-01-15 14:35:00,5.25,kWh,63.0,kW,32.0,F"""
+
+        importer = UsageCSVImporter(csv_content, customer=self.customer)
+        results = importer.import_usage()
+
+        # 32°F = 0°C
+        usage = CustomerUsage.objects.get(customer=self.customer)
+        self.assertEqual(float(usage.temperature_c), 0.0)
+
+    def test_fahrenheit_variants(self):
+        """Test case-insensitive Fahrenheit unit variations."""
+        for unit in ["F", "f", "Fahrenheit", "fahrenheit"]:
+            CustomerUsage.objects.all().delete()  # Clear for each test
+
+            csv_content = f"""interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+2024-01-15 14:30:00,2024-01-15 14:35:00,5.25,kWh,63.0,kW,77.0,{unit}"""
+
+            importer = UsageCSVImporter(csv_content, customer=self.customer)
+            results = importer.import_usage()
+
+            self.assertEqual(len(results["created"]), 1, f"Failed for unit: {unit}")
+            self.assertEqual(len(results["errors"]), 0, f"Failed for unit: {unit}")
+
+            # 77°F = 25°C
+            usage = CustomerUsage.objects.get(customer=self.customer)
+            self.assertEqual(float(usage.temperature_c), 25.0, f"Failed for unit: {unit}")

@@ -33,7 +33,7 @@
         <li>ISO format: <code>2024-01-15T14:30:00Z</code></li>
       </ul>
     </li>
-    <li><strong>Units:</strong> usage_unit must be "kWh", peak_demand_unit must be "kW", temperature_unit must be "C" (all case-insensitive)</li>
+    <li><strong>Units:</strong> usage_unit must be "kWh", peak_demand_unit must be "kW", temperature_unit must be "C" or "F" (all case-insensitive)</li>
     <li>Temperature field is optional (can be empty)</li>
     <li>Interval duration must match customer's billing_interval_minutes setting</li>
     <li>Newly uploaded data will replace existing data for the same intervals</li>
@@ -41,10 +41,15 @@
     <li>Maximum file size: 10MB</li>
   </ul>
 
-  <h3>Example CSV:</h3>
+  <h3>Example CSV (Celsius):</h3>
   <pre>interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
 2024-01-15 14:30:00,2024-01-15 14:35:00,5.25,kWh,63.0,kW,22.5,C
 2024-01-15 14:35:00,2024-01-15 14:40:00,5.12,kWh,61.5,kW,22.3,C</pre>
+
+  <h3>Example CSV (Fahrenheit):</h3>
+  <pre>interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+2024-01-15 14:30:00,2024-01-15 14:35:00,5.25,kWh,63.0,kW,72.5,F
+2024-01-15 14:35:00,2024-01-15 14:40:00,5.12,kWh,61.5,kW,72.1,F</pre>
 </div>
 
 <form method="post" enctype="multipart/form-data" class="module">

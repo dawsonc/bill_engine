@@ -189,7 +189,10 @@ class UsageCSVImporter:
             temp_value = row_data.get("temperature", "").strip()
             if temp_value:
                 try:
-                    temperature_c = Decimal(temp_value)
+                    temperature_raw = Decimal(temp_value)
+                    # Convert to Celsius if needed
+                    temp_unit = row_data.get("temperature_unit", "").strip()
+                    temperature_c = self._convert_temperature_to_celsius(temperature_raw, temp_unit)
                 except (InvalidOperation, ValueError):
                     self.results["errors"].append(
                         (row_identifier, [f"Invalid temperature value: {temp_value}"])
@@ -302,7 +305,7 @@ class UsageCSVImporter:
         allowed_units = {
             "usage_unit": ["kwh"],
             "peak_demand_unit": ["kw"],
-            "temperature_unit": ["c", "celsius", "°c"],
+            "temperature_unit": ["c", "celsius", "°c", "f", "fahrenheit", "°f"],
         }
 
         for unit_field, allowed in allowed_units.items():
@@ -326,7 +329,7 @@ class UsageCSVImporter:
                     )
                 elif unit_field == "temperature_unit":
                     errors.append(
-                        f"Invalid {unit_field}: '{row_data.get(unit_field, '')}'. Must be 'C' or 'Celsius' (case-insensitive)"
+                        f"Invalid {unit_field}: '{row_data.get(unit_field, '')}'. Must be 'C', 'Celsius', 'F', or 'Fahrenheit' (case-insensitive)"
                     )
 
         return errors
@@ -347,3 +350,25 @@ class UsageCSVImporter:
                 f"Verify units are correct (not W instead of kW)."
             )
         return None
+
+    def _convert_temperature_to_celsius(self, temperature_value: Decimal, unit: str) -> Decimal:
+        """
+        Convert temperature to Celsius if needed.
+
+        Args:
+            temperature_value: Temperature value
+            unit: Temperature unit (normalized lowercase)
+
+        Returns:
+            Temperature in Celsius
+        """
+        unit = unit.lower().strip()
+
+        # If Fahrenheit, convert to Celsius
+        if unit in ["f", "fahrenheit", "°f"]:
+            # Formula: C = (F - 32) * 5/9
+            celsius = (temperature_value - Decimal("32")) * Decimal("5") / Decimal("9")
+            return celsius
+
+        # Already Celsius (or celsius variants)
+        return temperature_value
