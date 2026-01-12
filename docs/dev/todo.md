@@ -3,5 +3,5 @@ Django side
 
 Billing module
 - [x] Review tests, subtract extraneous tests
-- [ ] Write tests for applicability
-- [ ] make units explicit in charge properties
+- [x] Write tests for applicability
+- [x] make units explicit in charge properties

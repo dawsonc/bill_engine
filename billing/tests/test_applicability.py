@@ -16,7 +16,7 @@ from billing.core.types import ApplicabilityRule, DayType
 
 
 @pytest.mark.parametrize(
-    "period_start,period_end,start_date,end_date,should_raise,error_msg",
+    "period_start_local,period_end_local,start_date,end_date,should_raise,error_msg",
     [
         # Time validations - invalid cases
         (
@@ -25,7 +25,7 @@ from billing.core.types import ApplicabilityRule, DayType
             None,
             None,
             True,
-            "period_start must be strictly earlier",
+            "period_start_local must be strictly earlier",
         ),
         (
             time(17, 0),
@@ -33,7 +33,7 @@ from billing.core.types import ApplicabilityRule, DayType
             None,
             None,
             True,
-            "period_start must be strictly earlier",
+            "period_start_local must be strictly earlier",
         ),
         # Date validations - invalid case
         (
@@ -49,22 +49,22 @@ from billing.core.types import ApplicabilityRule, DayType
     ],
 )
 def test_applicability_rule_validation(
-    period_start, period_end, start_date, end_date, should_raise, error_msg
+    period_start_local, period_end_local, start_date, end_date, should_raise, error_msg
 ):
     """Test ApplicabilityRule validation for time and date constraints."""
     if should_raise:
         with pytest.raises(ValueError) as exc_info:
             ApplicabilityRule(
-                period_start=period_start,
-                period_end=period_end,
+                period_start_local=period_start_local,
+                period_end_local=period_end_local,
                 start_date=start_date,
                 end_date=end_date,
             )
         assert error_msg in str(exc_info.value)
     else:
         rule = ApplicabilityRule(
-            period_start=period_start,
-            period_end=period_end,
+            period_start_local=period_start_local,
+            period_end_local=period_end_local,
             start_date=start_date,
             end_date=end_date,
         )
@@ -103,9 +103,9 @@ def test_mixed_week_with_holiday(full_week_usage):
 # Time Filtering Tests
 
 
-def test_period_start_only(hourly_day_usage):
-    """Filter with only period_start (no end)."""
-    rule = ApplicabilityRule(period_start=time(12, 0))
+def test_period_start_local_only(hourly_day_usage):
+    """Filter with only period_start_local (no end)."""
+    rule = ApplicabilityRule(period_start_local=time(12, 0))
 
     result = construct_applicability_mask(hourly_day_usage, rule)
 
@@ -120,9 +120,9 @@ def test_period_start_only(hourly_day_usage):
         assert result.iloc[idx]
 
 
-def test_period_end_only(hourly_day_usage):
-    """Filter with only period_end (no start)."""
-    rule = ApplicabilityRule(period_end=time(12, 0))
+def test_period_end_local_only(hourly_day_usage):
+    """Filter with only period_end_local (no start)."""
+    rule = ApplicabilityRule(period_end_local=time(12, 0))
 
     result = construct_applicability_mask(hourly_day_usage, rule)
 
@@ -134,9 +134,9 @@ def test_period_end_only(hourly_day_usage):
         assert result.iloc[i]
 
 
-def test_period_start_and_end(hourly_day_usage):
+def test_period_start_local_and_end(hourly_day_usage):
     """Filter with both start and end times."""
-    rule = ApplicabilityRule(period_start=time(9, 0), period_end=time(17, 0))
+    rule = ApplicabilityRule(period_start_local=time(9, 0), period_end_local=time(17, 0))
 
     result = construct_applicability_mask(hourly_day_usage, rule)
 
@@ -149,7 +149,7 @@ def test_period_start_and_end(hourly_day_usage):
 
 
 @pytest.mark.parametrize(
-    "period_start,period_end,expected_hours,inclusive_hour,exclusive_hour",
+    "period_start_local,period_end_local,expected_hours,inclusive_hour,exclusive_hour",
     [
         # Normal range with explicit boundary checks
         (time(10, 0), time(15, 0), list(range(10, 15)), 10, 15),
@@ -160,10 +160,10 @@ def test_period_start_and_end(hourly_day_usage):
     ],
 )
 def test_time_boundary_filtering(
-    hourly_day_usage, period_start, period_end, expected_hours, inclusive_hour, exclusive_hour
+    hourly_day_usage, period_start_local, period_end_local, expected_hours, inclusive_hour, exclusive_hour
 ):
     """Test time filtering with various boundary conditions (inclusive start, exclusive end)."""
-    rule = ApplicabilityRule(period_start=period_start, period_end=period_end)
+    rule = ApplicabilityRule(period_start_local=period_start_local, period_end_local=period_end_local)
     result = construct_applicability_mask(hourly_day_usage, rule)
 
     assert result.sum() == len(expected_hours)
@@ -178,7 +178,7 @@ def test_time_boundary_filtering(
 
 def test_no_time_constraints(hourly_day_usage):
     """Both None means apply to all times."""
-    rule = ApplicabilityRule(period_start=None, period_end=None)
+    rule = ApplicabilityRule(period_start_local=None, period_end_local=None)
 
     result = construct_applicability_mask(hourly_day_usage, rule)
 
@@ -297,8 +297,8 @@ def test_weekday_peak_hours(full_week_usage):
     """Weekdays during peak hours (9am-5pm)."""
     rule = ApplicabilityRule(
         day_types=frozenset([DayType.WEEKDAY]),
-        period_start=time(9, 0),
-        period_end=time(17, 0),
+        period_start_local=time(9, 0),
+        period_end_local=time(17, 0),
     )
 
     result = construct_applicability_mask(full_week_usage, rule)
@@ -323,8 +323,8 @@ def test_summer_weekday_afternoon(usage_df_factory):
 
     rule = ApplicabilityRule(
         day_types=frozenset([DayType.WEEKDAY]),
-        period_start=time(12, 0),
-        period_end=time(18, 0),
+        period_start_local=time(12, 0),
+        period_end_local=time(18, 0),
         start_date=date(2024, 6, 1),
         end_date=date(2024, 9, 1),  # FIX TODO
     )
@@ -361,8 +361,8 @@ def test_restrictive_combined_filters(full_week_usage):
 
     rule = ApplicabilityRule(
         day_types=frozenset([DayType.HOLIDAY]),
-        period_start=time(14, 0),
-        period_end=time(15, 0),
+        period_start_local=time(14, 0),
+        period_end_local=time(15, 0),
         start_date=date(2024, 1, 2),
         end_date=date(2024, 1, 3),
     )
@@ -391,7 +391,7 @@ def test_restrictive_combined_filters(full_week_usage):
             "2024-03-10 00:00:00",
             24,
             "1h",
-            {"period_start": time(0, 0), "period_end": time(12, 0)},
+            {"period_start_local": time(0, 0), "period_end_local": time(12, 0)},
             12,
             "DST transition handles missing hour",
         ),

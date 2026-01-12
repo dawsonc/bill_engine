@@ -61,7 +61,7 @@ class EnergyChargeModelTests(TestCase):
         )
         with self.assertRaises(ValidationError) as cm:
             charge.full_clean()
-        self.assertIn('period_end_time_local', cm.exception.message_dict)
+        self.assertIn("period_end_time_local", cm.exception.message_dict)
 
     def test_period_end_time_before_start_time(self):
         """Test that period end time cannot be before start time."""
@@ -74,7 +74,7 @@ class EnergyChargeModelTests(TestCase):
         )
         with self.assertRaises(ValidationError) as cm:
             charge.full_clean()
-        self.assertIn('period_end_time_local', cm.exception.message_dict)
+        self.assertIn("period_end_time_local", cm.exception.message_dict)
 
     def test_applies_end_date_must_be_on_or_after_start_date(self):
         """Test that applicable end date must be on or after start date."""
@@ -90,7 +90,7 @@ class EnergyChargeModelTests(TestCase):
         )
         with self.assertRaises(ValidationError) as cm:
             charge.full_clean()
-        self.assertIn('applies_end_date', cm.exception.message_dict)
+        self.assertIn("applies_end_date", cm.exception.message_dict)
 
     def test_applies_same_start_and_end_date_allowed(self):
         """Test that same start and end date is allowed (single-day charge)."""

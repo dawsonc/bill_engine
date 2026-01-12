@@ -38,10 +38,10 @@ def construct_applicability_mask(usage: pd.DataFrame, rule: ApplicabilityRule) -
 
     # Permissive approach: if either the start or end time is None, treat it as the
     # beginning or end of the day, respectively
-    if rule.period_start:
-        rule_mask[~(rule.period_start <= interval_start_times)] = False
-    if rule.period_end:
-        rule_mask[~(interval_start_times < rule.period_end)] = False
+    if rule.period_start_local:
+        rule_mask[~(rule.period_start_local <= interval_start_times)] = False
+    if rule.period_end_local:
+        rule_mask[~(interval_start_times < rule.period_end_local)] = False
 
     # Same permissive approach to start and end dates
     if rule.start_date:

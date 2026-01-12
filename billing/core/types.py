@@ -42,27 +42,27 @@ class ApplicabilityRule:
 
     Notes:
         - If a field is None/empty, it is treated as 'no constraint' for that dimension.
-        - period_start/period_end are interpreted as local clock times.
+        - period_start_local/period_end_local are interpreted as local clock times.
 
     Validation:
-        - period_start < period_end
+        - period_start_local < period_end_local
         - start_date <= end_date
 
     Defaults:
         - Applies to all day_types by default
     """
 
-    period_start: Optional[time] = None
-    period_end: Optional[time] = None
+    period_start_local: Optional[time] = None
+    period_end_local: Optional[time] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     day_types: frozenset[DayType] = field(default_factory=lambda: frozenset(DayType))
 
     def __post_init__(self) -> None:
         """Validate internal consistency of the applicability rule."""
-        if self.period_start is not None and self.period_end is not None:
-            if self.period_start >= self.period_end:
-                raise ValueError("period_start must be strictly earlier than period_end")
+        if self.period_start_local is not None and self.period_end_local is not None:
+            if self.period_start_local >= self.period_end_local:
+                raise ValueError("period_start_local must be strictly earlier than period_end_local")
 
         if self.start_date is not None and self.end_date is not None:
             if self.start_date > self.end_date:
@@ -83,7 +83,7 @@ class EnergyCharge:
     """
 
     name: str
-    rate_per_kwh: Decimal
+    rate_usd_per_kwh: Decimal
     charge_id: ChargeId = field(default_factory=ChargeId)
     applicability: ApplicabilityRule = field(default_factory=ApplicabilityRule)
 
@@ -95,7 +95,7 @@ class DemandCharge:
     """
 
     name: str
-    rate_per_kw: Decimal
+    rate_usd_per_kw: Decimal
     type: PeakType = PeakType.MONTHLY
     charge_id: ChargeId = field(default_factory=ChargeId)
     applicability: ApplicabilityRule = field(default_factory=ApplicabilityRule)
@@ -110,7 +110,7 @@ class CustomerCharge:
     """
 
     name: str
-    amount: Decimal
+    amount_usd_per_month: Decimal
     charge_id: ChargeId = field(default_factory=ChargeId)
 
 
@@ -132,7 +132,7 @@ class BillLineItem:
     """
 
     description: str
-    amount: Decimal
+    amount_usd: Decimal
     charge_id: ChargeId = field(default_factory=ChargeId)
 
 
@@ -147,4 +147,4 @@ class MonthlyBillResult:
     energy_line_items: tuple[BillLineItem, ...]
     demand_line_items: tuple[BillLineItem, ...]
     customer_line_items: tuple[BillLineItem, ...]
-    total: Decimal
+    total_usd: Decimal

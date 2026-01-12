@@ -128,8 +128,8 @@ def build_applicability_rule(
     day_types = build_day_types(applies_weekdays, applies_weekends, applies_holidays)
 
     return ApplicabilityRule(
-        period_start=period_start_time_local,
-        period_end=period_end_time_local,
+        period_start_local=period_start_time_local,
+        period_end_local=period_end_time_local,
         start_date=applies_start_date,
         end_date=applies_end_date,
         day_types=day_types,
@@ -159,7 +159,7 @@ def energy_charge_to_dto(charge: EnergyChargeModel) -> EnergyCharge:
 
     return EnergyCharge(
         name=charge.name,
-        rate_per_kwh=charge.rate_usd_per_kwh,
+        rate_usd_per_kwh=charge.rate_usd_per_kwh,
         charge_id=charge_id,
         applicability=applicability,
     )
@@ -199,7 +199,7 @@ def demand_charge_to_dto(charge: DemandChargeModel) -> DemandCharge:
 
     return DemandCharge(
         name=charge.name,
-        rate_per_kw=charge.rate_usd_per_kw,
+        rate_usd_per_kw=charge.rate_usd_per_kw,
         type=peak_type,
         charge_id=charge_id,
         applicability=applicability,
@@ -222,7 +222,7 @@ def customer_charge_to_dto(charge: CustomerChargeModel) -> CustomerCharge:
 
     return CustomerCharge(
         name=charge.name,
-        amount=charge.usd_per_month,
+        amount_usd_per_month=charge.usd_per_month,
         charge_id=charge_id,
     )
 

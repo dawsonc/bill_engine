@@ -85,8 +85,8 @@ def test_full_applicability_rule():
         applies_holidays=False,
     )
 
-    assert rule.period_start == time(8, 0)
-    assert rule.period_end == time(17, 0)
+    assert rule.period_start_local == time(8, 0)
+    assert rule.period_end_local == time(17, 0)
     assert rule.start_date == date(2024, 6, 1)
     assert rule.end_date == date(2024, 8, 31)
     assert rule.day_types == frozenset({DayType.WEEKDAY})
@@ -130,9 +130,9 @@ def test_energy_charge_conversion(tariff):
     dto = energy_charge_to_dto(charge)
 
     assert dto.name == "Peak Energy"
-    assert dto.rate_per_kwh == Decimal("0.25")
-    assert dto.applicability.period_start == time(12, 0)
-    assert dto.applicability.period_end == time(18, 0)
+    assert dto.rate_usd_per_kwh == Decimal("0.25")
+    assert dto.applicability.period_start_local == time(12, 0)
+    assert dto.applicability.period_end_local == time(18, 0)
     assert dto.applicability.day_types == frozenset({DayType.WEEKDAY})
 
 
@@ -182,7 +182,7 @@ def test_demand_charge_conversion(tariff, peak_type, expected_enum):
     dto = demand_charge_to_dto(charge)
 
     assert dto.name == f"{peak_type.title()} Demand"
-    assert dto.rate_per_kw == Decimal("15.00")
+    assert dto.rate_usd_per_kw == Decimal("15.00")
     assert dto.type == expected_enum
 
 
@@ -221,7 +221,7 @@ def test_customer_charge_conversion(tariff):
     dto = customer_charge_to_dto(charge)
 
     assert dto.name == "Monthly Service Fee"
-    assert dto.amount == Decimal("25.00")
+    assert dto.amount_usd_per_month == Decimal("25.00")
     # CustomerCharge has no applicability rule
     assert dto.charge_id is not None
 
