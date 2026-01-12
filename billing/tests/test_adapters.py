@@ -21,8 +21,6 @@ from billing.adapters import (
 )
 from billing.core.types import DayType, PeakType
 from tariffs.models import CustomerCharge, DemandCharge, EnergyCharge, Tariff
-from utilities.models import Utility
-
 
 # ChargeId Generation Tests
 
@@ -106,9 +104,7 @@ def test_applicability_rule_with_nulls():
 
     assert rule.start_date is None
     assert rule.end_date is None
-    assert rule.day_types == frozenset(
-        {DayType.WEEKDAY, DayType.WEEKEND, DayType.HOLIDAY}
-    )
+    assert rule.day_types == frozenset({DayType.WEEKDAY, DayType.WEEKEND, DayType.HOLIDAY})
 
 
 # EnergyCharge Conversion Tests
@@ -267,9 +263,7 @@ def test_tariff_to_charge_list_counts(utility):
         applies_holidays=True,
     )
 
-    CustomerCharge.objects.create(
-        tariff=tariff, name="Service Fee", usd_per_month=Decimal("20.00")
-    )
+    CustomerCharge.objects.create(tariff=tariff, name="Service Fee", usd_per_month=Decimal("20.00"))
 
     tariff = Tariff.objects.prefetch_related(
         "energy_charges", "demand_charges", "customer_charges"

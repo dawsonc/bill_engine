@@ -21,8 +21,14 @@ from billing.core.types import (
 )
 from tariffs.models import (
     CustomerCharge as CustomerChargeModel,
+)
+from tariffs.models import (
     DemandCharge as DemandChargeModel,
+)
+from tariffs.models import (
     EnergyCharge as EnergyChargeModel,
+)
+from tariffs.models import (
     Tariff,
 )
 
@@ -260,13 +266,9 @@ def tariff_to_charge_list(tariff: Tariff) -> ChargeList:
     """
     # Convert each charge type using dedicated helper functions
     # Use tuple() for immutability as required by ChargeList
-    energy_charges = tuple(
-        energy_charge_to_dto(charge) for charge in tariff.energy_charges.all()
-    )
+    energy_charges = tuple(energy_charge_to_dto(charge) for charge in tariff.energy_charges.all())
 
-    demand_charges = tuple(
-        demand_charge_to_dto(charge) for charge in tariff.demand_charges.all()
-    )
+    demand_charges = tuple(demand_charge_to_dto(charge) for charge in tariff.demand_charges.all())
 
     customer_charges = tuple(
         customer_charge_to_dto(charge) for charge in tariff.customer_charges.all()

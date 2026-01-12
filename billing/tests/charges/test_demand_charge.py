@@ -2,13 +2,13 @@
 Unit tests for demand charge logic.
 """
 
+from datetime import date, time
 from decimal import Decimal
-from datetime import time, date
 
 import pytest
 
 from billing.core.charges.demand import apply_demand_charge
-from billing.core.types import DemandCharge, ApplicabilityRule, DayType, PeakType
+from billing.core.types import ApplicabilityRule, DayType, DemandCharge, PeakType
 
 
 @pytest.fixture
@@ -35,8 +35,30 @@ def daily_demand_charge():
 def varying_demand_usage(usage_df_factory):
     """Create usage with varying kW values to test peak identification."""
     kw_values = [
-        10, 15, 20, 25, 30, 35, 40, 45, 50, 45, 40, 35,  # Morning peak at hour 8 (50 kW)
-        30, 25, 20, 25, 30, 35, 40, 35, 30, 25, 20, 15   # Afternoon (40 kW at hour 18)
+        10,
+        15,
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,
+        50,
+        45,
+        40,
+        35,  # Morning peak at hour 8 (50 kW)
+        30,
+        25,
+        20,
+        25,
+        30,
+        35,
+        40,
+        35,
+        30,
+        25,
+        20,
+        15,  # Afternoon (40 kW at hour 18)
     ]
     usage = usage_df_factory(
         start="2024-01-01 00:00:00",
@@ -103,10 +125,32 @@ def test_two_intervals_share_peak(usage_df_factory, monthly_demand_charge):
     Expected: Cost split 50/50 between the two peak intervals
     """
     # Create usage where hours 8 and 17 both have 45 kW (tied for peak)
-    kw_values = [10, 15, 20, 25, 30, 35, 40, 45,  # Hour 8: 45 kW
-                 40, 35, 30, 25, 20, 15, 10, 15,
-                 20, 45,  # Hour 17: 45 kW
-                 40, 35, 30, 25, 20, 15]
+    kw_values = [
+        10,
+        15,
+        20,
+        25,
+        30,
+        35,
+        40,
+        45,  # Hour 8: 45 kW
+        40,
+        35,
+        30,
+        25,
+        20,
+        15,
+        10,
+        15,
+        20,
+        45,  # Hour 17: 45 kW
+        40,
+        35,
+        30,
+        25,
+        20,
+        15,
+    ]
     usage = usage_df_factory(
         start="2024-01-01 00:00:00",
         periods=24,
@@ -212,9 +256,9 @@ def test_monthly_vs_daily_peak_type(usage_df_factory):
     for day in range(7):
         day_peak_index = day * 24 + 12
         expected_charge = Decimal("5.00") * daily_peaks[day]
-        assert (
-            daily_result.iloc[day_peak_index] == expected_charge
-        ), f"Day {day+1} peak should be charged"
+        assert daily_result.iloc[day_peak_index] == expected_charge, (
+            f"Day {day + 1} peak should be charged"
+        )
 
 
 def test_daily_peak_type_multi_day(usage_df_factory):
@@ -230,9 +274,7 @@ def test_daily_peak_type_multi_day(usage_df_factory):
         + [20 + (i % 12) for i in range(24)]  # Day 3: peak at hours 11 and 23 (31 kW)
     )
 
-    usage = usage_df_factory(
-        start="2024-01-01 00:00:00", periods=3 * 24, freq="1h", kw=kw_values
-    )
+    usage = usage_df_factory(start="2024-01-01 00:00:00", periods=3 * 24, freq="1h", kw=kw_values)
 
     daily_charge = DemandCharge(
         name="Daily Peak",
@@ -279,9 +321,7 @@ def test_monthly_peak_across_months(usage_df_factory):
             else:
                 kw_values.append(35)
 
-    usage = usage_df_factory(
-        start="2024-01-01 00:00:00", periods=60 * 24, freq="1h", kw=kw_values
-    )
+    usage = usage_df_factory(start="2024-01-01 00:00:00", periods=60 * 24, freq="1h", kw=kw_values)
 
     monthly_charge = DemandCharge(
         name="Monthly Peak",
@@ -393,9 +433,7 @@ def test_no_applicable_intervals(hourly_day_usage):
         name="December Only",
         rate_usd_per_kw=Decimal("15.00"),
         type=PeakType.MONTHLY,
-        applicability=ApplicabilityRule(
-            start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)
-        ),
+        applicability=ApplicabilityRule(start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)),
     )
 
     result = apply_demand_charge(hourly_day_usage, charge)
@@ -412,9 +450,7 @@ def test_zero_demand_all_intervals(usage_df_factory, monthly_demand_charge):
 
     Expected: All charges = $0 (no division by zero errors)
     """
-    usage = usage_df_factory(
-        start="2024-01-01 00:00:00", periods=24, freq="1h", kw=Decimal("0")
-    )
+    usage = usage_df_factory(start="2024-01-01 00:00:00", periods=24, freq="1h", kw=Decimal("0"))
 
     result = apply_demand_charge(usage, monthly_demand_charge)
 
@@ -442,9 +478,7 @@ def test_single_interval_dataset(usage_df_factory, monthly_demand_charge):
 
     Expected: That interval is the peak, gets full charge
     """
-    usage = usage_df_factory(
-        start="2024-01-01 12:00:00", periods=1, freq="1h", kw=Decimal("48")
-    )
+    usage = usage_df_factory(start="2024-01-01 12:00:00", periods=1, freq="1h", kw=Decimal("48"))
 
     result = apply_demand_charge(usage, monthly_demand_charge)
 

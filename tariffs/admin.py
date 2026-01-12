@@ -1,6 +1,6 @@
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.http import HttpResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import render
 from django.urls import path
 
 from .forms import TariffYAMLUploadForm
@@ -68,23 +68,29 @@ class TariffAdmin(admin.ModelAdmin):
         """Add custom URLs for import/export views."""
         urls = super().get_urls()
         custom_urls = [
-            path('import/', self.admin_site.admin_view(self.import_tariffs_view),
-                 name='tariffs_tariff_import'),
-            path('export/', self.admin_site.admin_view(self.export_tariffs_view),
-                 name='tariffs_tariff_export'),
+            path(
+                "import/",
+                self.admin_site.admin_view(self.import_tariffs_view),
+                name="tariffs_tariff_import",
+            ),
+            path(
+                "export/",
+                self.admin_site.admin_view(self.export_tariffs_view),
+                name="tariffs_tariff_export",
+            ),
         ]
         return custom_urls + urls
 
     def import_tariffs_view(self, request):
         """Handle YAML import via file upload."""
-        if request.method == 'POST':
+        if request.method == "POST":
             form = TariffYAMLUploadForm(request.POST, request.FILES)
             if form.is_valid():
-                yaml_file = form.cleaned_data['yaml_file']
-                replace_existing = form.cleaned_data['replace_existing']
+                yaml_file = form.cleaned_data["yaml_file"]
+                replace_existing = form.cleaned_data["replace_existing"]
 
                 # Read file content
-                yaml_content = yaml_file.read().decode('utf-8')
+                yaml_content = yaml_file.read().decode("utf-8")
 
                 # Import tariffs
                 importer = TariffYAMLImporter(yaml_content, replace_existing=replace_existing)
@@ -93,20 +99,20 @@ class TariffAdmin(admin.ModelAdmin):
                 # Render results page
                 context = {
                     **self.admin_site.each_context(request),
-                    'results': results,
-                    'opts': self.model._meta,
+                    "results": results,
+                    "opts": self.model._meta,
                 }
-                return render(request, 'admin/tariffs/tariff_import_result.html', context)
+                return render(request, "admin/tariffs/tariff_import_result.html", context)
         else:
             form = TariffYAMLUploadForm()
 
         context = {
             **self.admin_site.each_context(request),
-            'form': form,
-            'opts': self.model._meta,
-            'title': 'Import Tariffs from YAML',
+            "form": form,
+            "opts": self.model._meta,
+            "title": "Import Tariffs from YAML",
         }
-        return render(request, 'admin/tariffs/tariff_import.html', context)
+        return render(request, "admin/tariffs/tariff_import.html", context)
 
     def export_tariffs_view(self, request):
         """Export all tariffs as YAML download."""
@@ -114,8 +120,8 @@ class TariffAdmin(admin.ModelAdmin):
         exporter = TariffYAMLExporter(tariffs)
         yaml_str = exporter.export_to_yaml()
 
-        response = HttpResponse(yaml_str, content_type='application/x-yaml')
-        response['Content-Disposition'] = 'attachment; filename="tariffs.yaml"'
+        response = HttpResponse(yaml_str, content_type="application/x-yaml")
+        response["Content-Disposition"] = 'attachment; filename="tariffs.yaml"'
         return response
 
     @admin.action(description="Export selected tariffs to YAML")
@@ -124,8 +130,8 @@ class TariffAdmin(admin.ModelAdmin):
         exporter = TariffYAMLExporter(queryset)
         yaml_str = exporter.export_to_yaml()
 
-        response = HttpResponse(yaml_str, content_type='application/x-yaml')
-        response['Content-Disposition'] = 'attachment; filename="tariffs_selected.yaml"'
+        response = HttpResponse(yaml_str, content_type="application/x-yaml")
+        response["Content-Disposition"] = 'attachment; filename="tariffs_selected.yaml"'
         return response
 
 

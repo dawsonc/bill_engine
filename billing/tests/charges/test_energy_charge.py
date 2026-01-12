@@ -2,13 +2,13 @@
 Unit tests for energy charge logic.
 """
 
+from datetime import date, time
 from decimal import Decimal
-from datetime import time, date
 
 import pytest
 
 from billing.core.charges.energy import apply_energy_charge
-from billing.core.types import EnergyCharge, ApplicabilityRule, DayType
+from billing.core.types import ApplicabilityRule, DayType, EnergyCharge
 
 
 @pytest.fixture
@@ -57,9 +57,7 @@ def test_zero_usage_intervals(usage_df_factory, energy_charge):
 
     Expected: charge = $0 when kwh = 0
     """
-    usage = usage_df_factory(
-        start="2024-01-01 00:00:00", periods=5, freq="1h", kwh=Decimal("0")
-    )
+    usage = usage_df_factory(start="2024-01-01 00:00:00", periods=5, freq="1h", kwh=Decimal("0"))
     result = apply_energy_charge(usage, energy_charge)
 
     assert (result == Decimal("0")).all()
@@ -147,9 +145,7 @@ def test_date_range_filtering(month_usage):
     charge = EnergyCharge(
         name="Limited Period Energy",
         rate_usd_per_kwh=Decimal("0.28"),
-        applicability=ApplicabilityRule(
-            start_date=date(2024, 1, 15), end_date=date(2024, 1, 20)
-        ),
+        applicability=ApplicabilityRule(start_date=date(2024, 1, 15), end_date=date(2024, 1, 20)),
     )
 
     result = apply_energy_charge(month_usage, charge)
@@ -165,9 +161,7 @@ def test_date_range_filtering(month_usage):
     # Check intervals outside date range are not charged
     out_of_range = ~in_range
     for idx in month_usage[out_of_range].index:
-        assert (
-            result.loc[idx] == 0
-        ), f"Interval on {dates.loc[idx]} should not be charged"
+        assert result.loc[idx] == 0, f"Interval on {dates.loc[idx]} should not be charged"
 
 
 def test_combined_applicability_rules(usage_df_factory):
@@ -178,7 +172,9 @@ def test_combined_applicability_rules(usage_df_factory):
     """
     # Create summer usage (June 1 - Aug 31, 2024)
     usage = usage_df_factory(
-        start="2024-06-01 00:00:00", periods=92 * 24, freq="1h"  # ~3 months
+        start="2024-06-01 00:00:00",
+        periods=92 * 24,
+        freq="1h",  # ~3 months
     )
 
     charge = EnergyCharge(
@@ -203,12 +199,12 @@ def test_combined_applicability_rules(usage_df_factory):
     # Check that charged intervals meet ALL criteria
     charged_intervals = result > 0
     for idx in usage[charged_intervals].index:
-        assert (
-            times.loc[idx] >= time(9, 0) and times.loc[idx] < time(17, 0)
-        ), "Charged interval not in time range"
-        assert (
-            dates.loc[idx] >= date(2024, 6, 1) and dates.loc[idx] <= date(2024, 8, 31)
-        ), "Charged interval not in date range"
+        assert times.loc[idx] >= time(9, 0) and times.loc[idx] < time(17, 0), (
+            "Charged interval not in time range"
+        )
+        assert dates.loc[idx] >= date(2024, 6, 1) and dates.loc[idx] <= date(2024, 8, 31), (
+            "Charged interval not in date range"
+        )
         assert is_weekday.loc[idx], "Charged interval not a weekday"
 
     # Verify at least some intervals are charged
@@ -224,9 +220,7 @@ def test_zero_rate(hourly_day_usage):
 
     Expected: All charges = $0
     """
-    charge = EnergyCharge(
-        name="Free Energy", rate_usd_per_kwh=Decimal("0.00")
-    )
+    charge = EnergyCharge(name="Free Energy", rate_usd_per_kwh=Decimal("0.00"))
 
     result = apply_energy_charge(hourly_day_usage, charge)
 
@@ -243,9 +237,7 @@ def test_no_matching_intervals(hourly_day_usage):
     charge = EnergyCharge(
         name="December Only Energy",
         rate_usd_per_kwh=Decimal("0.25"),
-        applicability=ApplicabilityRule(
-            start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)
-        ),
+        applicability=ApplicabilityRule(start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)),
     )
 
     result = apply_energy_charge(hourly_day_usage, charge)
@@ -261,13 +253,9 @@ def test_varying_usage_values(usage_df_factory):
     """
     # Create usage with varying kwh values
     kwh_values = [5, 10, 15, 20, 25]
-    usage = usage_df_factory(
-        start="2024-01-01 00:00:00", periods=5, freq="1h", kwh=kwh_values
-    )
+    usage = usage_df_factory(start="2024-01-01 00:00:00", periods=5, freq="1h", kwh=kwh_values)
 
-    charge = EnergyCharge(
-        name="Variable Usage Energy", rate_usd_per_kwh=Decimal("0.30")
-    )
+    charge = EnergyCharge(name="Variable Usage Energy", rate_usd_per_kwh=Decimal("0.30"))
 
     result = apply_energy_charge(usage, charge)
 

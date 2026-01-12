@@ -5,9 +5,8 @@ from django.test import TestCase
 
 from customers.models import Customer
 from tariffs.models import Tariff
-from utilities.models import Utility
-
 from usage.models import CustomerUsage
+from utilities.models import Utility
 
 
 class CustomerUsageTests(TestCase):
@@ -15,7 +14,9 @@ class CustomerUsageTests(TestCase):
         """Create required utility, tariff, and customer for usage tests."""
         self.utility = Utility.objects.create(name="PG&E")
         self.tariff = Tariff.objects.create(name="B-19", utility=self.utility)
-        self.customer = Customer.objects.create(name="Acme Corp", timezone="America/Los_Angeles", current_tariff=self.tariff)
+        self.customer = Customer.objects.create(
+            name="Acme Corp", timezone="America/Los_Angeles", current_tariff=self.tariff
+        )
 
     def test_create_and_str(self):
         """Test creating a usage record and its string representation."""

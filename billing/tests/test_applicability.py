@@ -160,10 +160,17 @@ def test_period_start_local_and_end(hourly_day_usage):
     ],
 )
 def test_time_boundary_filtering(
-    hourly_day_usage, period_start_local, period_end_local, expected_hours, inclusive_hour, exclusive_hour
+    hourly_day_usage,
+    period_start_local,
+    period_end_local,
+    expected_hours,
+    inclusive_hour,
+    exclusive_hour,
 ):
     """Test time filtering with various boundary conditions (inclusive start, exclusive end)."""
-    rule = ApplicabilityRule(period_start_local=period_start_local, period_end_local=period_end_local)
+    rule = ApplicabilityRule(
+        period_start_local=period_start_local, period_end_local=period_end_local
+    )
     result = construct_applicability_mask(hourly_day_usage, rule)
 
     assert result.sum() == len(expected_hours)

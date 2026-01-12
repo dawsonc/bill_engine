@@ -13,7 +13,6 @@ from billing.core.data import (
     validate_usage_dataframe,
 )
 
-
 # Fill Missing Data Tests
 
 
@@ -146,7 +145,7 @@ def test_rejects_overlapping_intervals(usage_df_factory):
     df.loc[1, "interval_end"] = df.loc[1, "interval_start"] + pd.Timedelta("30min")
 
     with pytest.raises(ValueError) as exc_info:
-        result = fill_missing_data(df)
+        _ = fill_missing_data(df)
 
     assert "overlap" in str(exc_info.value)
 
@@ -172,7 +171,7 @@ def test_single_interval_complete_returns_unchanged(usage_df_factory):
     assert result.iloc[0]["kwh"] == 10.5
 
 
-def test_missing_required_columns_raises_error():
+def test_fill_misssing_data_missing_required_columns_raises_error():
     """Verify error on missing interval_start or interval_end."""
     df = pd.DataFrame(
         {
@@ -208,7 +207,7 @@ def test_valid_dataframe_passes(usage_df_factory):
     validate_usage_dataframe(df)
 
 
-def test_missing_required_columns_raises_error(usage_df_factory):
+def test_validate_usage_missing_required_columns_raises_error(usage_df_factory):
     """Verify error when required columns are missing."""
     df = usage_df_factory(periods=3)
     df = df.drop(columns=["kwh"])
@@ -341,9 +340,7 @@ def test_dst_transition_handling():
     # In UTC, these should still be evenly spaced
 
     # Start before DST transition
-    starts = pd.date_range(
-        start="2024-03-10 00:00:00", periods=8, freq="1h", tz="US/Pacific"
-    )
+    starts = pd.date_range(start="2024-03-10 00:00:00", periods=8, freq="1h", tz="US/Pacific")
 
     df = pd.DataFrame(
         {

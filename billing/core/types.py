@@ -62,7 +62,9 @@ class ApplicabilityRule:
         """Validate internal consistency of the applicability rule."""
         if self.period_start_local is not None and self.period_end_local is not None:
             if self.period_start_local >= self.period_end_local:
-                raise ValueError("period_start_local must be strictly earlier than period_end_local")
+                raise ValueError(
+                    "period_start_local must be strictly earlier than period_end_local"
+                )
 
         if self.start_date is not None and self.end_date is not None:
             if self.start_date > self.end_date:

@@ -202,7 +202,7 @@ class CustomerCSVImporterTests(TestCase):
     def test_import_duplicate_replace_mode(self):
         """Test that duplicates are updated when replace_existing=True."""
         # Create existing customer with different timezone
-        existing = Customer.objects.create(
+        Customer.objects.create(
             name="Duplicate Customer", timezone="America/New_York", current_tariff=self.tariff
         )
 

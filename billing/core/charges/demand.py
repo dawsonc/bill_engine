@@ -64,6 +64,9 @@ def apply_demand_charge(
         / usage["_num_peaks"]
     )
 
-    usage.drop(columns=["_masked_kw", "_peak_grouping", "_is_peak_interval", "_peak_demand", "_num_peaks"], inplace=True)
+    usage.drop(
+        columns=["_masked_kw", "_peak_grouping", "_is_peak_interval", "_peak_demand", "_num_peaks"],
+        inplace=True,
+    )
 
     return demand_cost

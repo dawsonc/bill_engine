@@ -66,9 +66,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "rate_usd_per_kwh",
-                    models.DecimalField(
-                        decimal_places=5, help_text="Rate in $/kWh", max_digits=10
-                    ),
+                    models.DecimalField(decimal_places=5, help_text="Rate in $/kWh", max_digits=10),
                 ),
                 (
                     "period_start_time_local",
@@ -154,9 +152,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "rate_usd_per_kw",
-                    models.DecimalField(
-                        decimal_places=2, help_text="Rate in $/kW", max_digits=10
-                    ),
+                    models.DecimalField(decimal_places=2, help_text="Rate in $/kW", max_digits=10),
                 ),
                 (
                     "period_start_time_local",
