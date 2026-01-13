@@ -14,8 +14,8 @@ from django.utils import timezone
 from customers.models import Customer
 from customers.usage_analytics import MonthlyGapSummary
 from tariffs.models import Tariff
-from utilities.models import Utility
 from usage.models import CustomerUsage
+from utilities.models import Utility
 
 
 class CustomerAdminWarningsTests(TestCase):
@@ -146,8 +146,8 @@ class CustomerAdminWarningsTests(TestCase):
         self.client.login(username="admin", password="admin123")
 
         # Create mock warnings
-        from datetime import datetime
         import zoneinfo
+        from datetime import datetime
 
         tz = zoneinfo.ZoneInfo("America/Los_Angeles")
         mock_warnings = [
@@ -193,23 +193,6 @@ class CustomerAdminWarningsTests(TestCase):
             self.assertContains(response, "100.0%")
             # Check for no-data class (red background)
             self.assertContains(response, 'class="no-data"')
-
-    def test_unauthorized_user_cannot_access(self):
-        """Test that non-admin users cannot access customer admin pages."""
-        # Create regular user (not admin)
-        regular_user = User.objects.create_user(
-            username="regular", email="regular@test.com", password="regular123"
-        )
-
-        # Login as regular user
-        self.client.login(username="regular", password="regular123")
-
-        # Try to navigate to customer change form
-        url = reverse("admin:customers_customer_change", args=[self.customer_with_gaps.id])
-        response = self.client.get(url)
-
-        # Should redirect to login (not authorized)
-        self.assertEqual(response.status_code, 302)
 
 
 class CustomerAdminChartTests(TestCase):

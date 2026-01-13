@@ -2,9 +2,9 @@
 Tests for customer usage data gap analytics.
 """
 
+import zoneinfo
 from datetime import datetime, timedelta
 from decimal import Decimal
-import zoneinfo
 
 from django.test import TestCase
 from django.utils import timezone
@@ -16,8 +16,8 @@ from customers.usage_analytics import (
     get_month_boundaries_in_customer_tz,
 )
 from tariffs.models import Tariff
-from utilities.models import Utility
 from usage.models import CustomerUsage
+from utilities.models import Utility
 
 
 class UsageAnalyticsTests(TestCase):
@@ -44,7 +44,6 @@ class UsageAnalyticsTests(TestCase):
     def test_analyze_gaps_complete_data(self):
         """Test accurate interval counting with partial complete data."""
         # Create complete usage data for the last 2 hours
-        tz = zoneinfo.ZoneInfo("America/Los_Angeles")
         now = timezone.now()
         start_time = now - timedelta(hours=2)
 
@@ -82,7 +81,6 @@ class UsageAnalyticsTests(TestCase):
     def test_analyze_gaps_missing_intervals(self):
         """Test detection of missing intervals."""
         # Create usage data with deliberate gaps
-        tz = zoneinfo.ZoneInfo("America/Los_Angeles")
         now = timezone.now()
 
         # Create only a few intervals (missing most of the expected data)
@@ -268,7 +266,6 @@ class UsageAnalyticsTests(TestCase):
     def test_analyze_gaps_dst_transition(self):
         """Test handling of DST transitions."""
         # Create customer that has been around for over a year
-        tz = zoneinfo.ZoneInfo("America/Los_Angeles")
         one_year_ago = timezone.now() - timedelta(days=365)
         self.customer.created_at = one_year_ago
         self.customer.save()

@@ -3,7 +3,8 @@ Chart data serialization for customer usage visualization.
 """
 
 import zoneinfo
-from datetime import datetime, timedelta, timezone as dt_timezone
+from datetime import datetime, timedelta
+from datetime import timezone as dt_timezone
 
 from django.db.models import Max, Sum
 from django.db.models.functions import TruncHour

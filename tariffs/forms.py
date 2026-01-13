@@ -6,7 +6,6 @@ from datetime import date
 
 from django import forms
 
-
 MONTH_CHOICES = [
     ("", "---"),
     (1, "Jan"),

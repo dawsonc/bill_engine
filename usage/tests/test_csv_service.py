@@ -350,7 +350,7 @@ class UsageCSVImporterTests(TestCase):
 2024-01-15 14:30:00,2024-01-15 14:35:00,5.25,kWh,63.0,kW,32.0,F"""
 
         importer = UsageCSVImporter(csv_content, customer=self.customer)
-        results = importer.import_usage()
+        importer.import_usage()
 
         # 32°F = 0°C
         usage = CustomerUsage.objects.get(customer=self.customer)
