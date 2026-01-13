@@ -26,7 +26,7 @@ The analyst should do all of these tasks via the admin pane.
 
 - [x] As an analyst, I want to be able to see whether a customer is missing data. Each customer page should show a warning with missing data for each month.
 
-- [ ] As an analyst, I want to be able to view a time series of customer usage (energy and peak demand) as a graph that I can filter down to a specific date range. This graph should be part of the page where I view individual customers.
+- [x] As an analyst, I want to be able to view a time series of customer usage (energy and peak demand) as a graph that I can filter down to a specific date range. This graph should be part of the page where I view individual customers.
 
 *(Out of scope for now, but we should be able to extend for this)* As an analyst, I want to be able to automatically pull customer data from an external interface like Green Button Connect on a regular schedule (e.g. nightly). *Don't need to implement this now, but keep it in mind for extensibility*
 
