@@ -47,9 +47,7 @@ def construct_applicability_mask(usage: pd.DataFrame, rule: ApplicabilityRule) -
     # Normalize dates to year 2000 for month/day-only comparison
     # This allows rules to match dates regardless of the actual year
     if rule.start_date or rule.end_date:
-        interval_dates_normalized = interval_starts.apply(
-            lambda dt: date(2000, dt.month, dt.day)
-        )
+        interval_dates_normalized = interval_starts.apply(lambda dt: date(2000, dt.month, dt.day))
         if rule.start_date:
             # Normalize rule start_date to year 2000 as well
             rule_start_normalized = date(2000, rule.start_date.month, rule.start_date.day)

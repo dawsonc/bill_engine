@@ -96,9 +96,7 @@ class CustomerAdminWarningsTests(TestCase):
             mock_analyze.side_effect = Exception("Test error")
 
             # Navigate to customer change form
-            url = reverse(
-                "admin:customers_customer_change", args=[self.customer_with_gaps.id]
-            )
+            url = reverse("admin:customers_customer_change", args=[self.customer_with_gaps.id])
             response = self.client.get(url)
 
             # Page should still load successfully
@@ -178,9 +176,7 @@ class CustomerAdminWarningsTests(TestCase):
             mock_analyze.return_value = mock_warnings
 
             # Navigate to customer change form
-            url = reverse(
-                "admin:customers_customer_change", args=[self.customer_with_gaps.id]
-            )
+            url = reverse("admin:customers_customer_change", args=[self.customer_with_gaps.id])
             response = self.client.get(url)
 
             # Assert response is successful
@@ -286,9 +282,7 @@ class CustomerAdminChartTests(TestCase):
 
         # GET with date parameters
         url = reverse("admin:customers_customer_change", args=[self.customer.id])
-        response = self.client.get(
-            url, {"start_date": "2024-01-01", "end_date": "2024-01-31"}
-        )
+        response = self.client.get(url, {"start_date": "2024-01-01", "end_date": "2024-01-31"})
 
         # Assert form populated with dates
         self.assertEqual(response.status_code, 200)

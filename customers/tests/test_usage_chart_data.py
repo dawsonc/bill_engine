@@ -238,9 +238,7 @@ class UsageChartDataTests(TestCase):
 
         # Query for June 15 in London time
         local_date = date(2024, 6, 15)
-        chart_data = get_usage_timeseries_data(
-            customer_london, local_date, local_date
-        )
+        chart_data = get_usage_timeseries_data(customer_london, local_date, local_date)
 
         # Should have data (midnight UTC = 1am BST in summer)
         self.assertTrue(chart_data["has_data"])

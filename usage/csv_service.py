@@ -4,17 +4,15 @@ CSV import service for customer usage data.
 Provides UsageCSVImporter class for handling bulk usage uploads via CSV format.
 """
 
-import csv
 import io
 import zoneinfo
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
+import pandas as pd
 from dateutil import parser as dateutil_parser
-
 from django.core.exceptions import ValidationError
-from django.db import transaction
 
 from customers.models import Customer
 from usage.models import CustomerUsage
@@ -22,6 +20,9 @@ from usage.models import CustomerUsage
 
 class UsageCSVImporter:
     """Import customer usage data from CSV format with validation."""
+
+    # Batch size for bulk operations (SQLite has ~999 variable limit)
+    BATCH_SIZE = 500
 
     def __init__(self, csv_content: str, customer: Customer):
         """
@@ -43,56 +44,74 @@ class UsageCSVImporter:
 
     def import_usage(self) -> dict:
         """
-        Parse and import usage data from CSV.
+        Parse and import usage data from CSV using bulk operations.
 
         Returns:
             Dictionary with results structure containing created, updated, warnings, and errors
         """
         try:
-            rows = self._parse_csv()
+            df = self._parse_csv()
         except Exception as e:
             self.results["errors"].append(("CSV File", [str(e)]))
             return self.results
 
-        if not rows:
+        if df.empty:
             self.results["errors"].append(("CSV File", ["No data rows found in CSV file"]))
             return self.results
 
-        # Import each usage record in its own transaction
-        for row_num, row_data in enumerate(rows, start=2):  # Start at 2 (header is row 1)
-            self._import_single_usage(row_data, row_num)
+        # Validate and transform each row, collecting valid records
+        valid_records = []
+        for idx, row in df.iterrows():
+            row_num = idx + 2  # 1-indexed, skip header
+            result = self._validate_and_transform_row(row, row_num)
+            if result is not None:
+                valid_records.append(result)
+
+        if not valid_records:
+            return self.results
+
+        # Fetch existing records in one query
+        interval_starts = [r["interval_start_utc"] for r in valid_records]
+        existing = self._get_existing_records(interval_starts)
+
+        # Split into create/update lists
+        to_create, to_update = self._split_records(valid_records, existing)
+
+        # Bulk create and update
+        self._bulk_create(to_create)
+        self._bulk_update(to_update, existing)
 
         return self.results
 
-    def _parse_csv(self) -> list[dict]:
+    def _parse_csv(self) -> pd.DataFrame:
         """
-        Parse CSV content with error handling.
+        Parse CSV content with pandas.
 
         Returns:
-            List of dictionaries representing CSV rows
+            DataFrame containing CSV data
 
         Raises:
             ValueError: If CSV syntax is invalid or schema is wrong
         """
         try:
-            reader = csv.DictReader(io.StringIO(self.csv_content))
+            df = pd.read_csv(io.StringIO(self.csv_content), dtype=str, keep_default_na=False)
 
             # Validate header
-            self._validate_schema(reader)
+            self._validate_schema(df.columns.tolist())
 
-            # Convert to list to catch any parsing errors
-            rows = list(reader)
-            return rows
+            return df
 
-        except csv.Error as e:
+        except pd.errors.EmptyDataError:
+            raise ValueError("CSV file is empty or has no header row")
+        except pd.errors.ParserError as e:
             raise ValueError(f"Invalid CSV syntax: {str(e)}")
 
-    def _validate_schema(self, reader: csv.DictReader):
+    def _validate_schema(self, columns: list[str]):
         """
         Validate CSV header structure.
 
         Args:
-            reader: CSV DictReader instance
+            columns: List of column names from DataFrame
 
         Raises:
             ValueError: If header is missing or incorrect
@@ -108,10 +127,10 @@ class UsageCSVImporter:
             "temperature_unit",
         }
 
-        if reader.fieldnames is None:
+        if not columns:
             raise ValueError("CSV file is empty or has no header row")
 
-        actual_columns = set(reader.fieldnames)
+        actual_columns = set(columns)
 
         if actual_columns != expected_columns:
             missing = expected_columns - actual_columns
@@ -128,106 +147,93 @@ class UsageCSVImporter:
                 f"{'; '.join(error_parts)}"
             )
 
-    def _import_single_usage(self, row_data: dict, row_num: int):
+    def _validate_and_transform_row(self, row_data: pd.Series, row_num: int) -> Optional[dict]:
         """
-        Import a single usage record atomically.
+        Validate and transform a single row of CSV data.
 
         Args:
-            row_data: Dictionary of CSV row data
+            row_data: pandas Series containing row data
             row_num: Row number for error reporting (1-indexed)
+
+        Returns:
+            Dictionary with 'interval_start_utc' and 'data' keys if valid, None if errors
         """
-        interval_start = row_data.get("interval_start", "").strip()
+        interval_start = str(row_data.get("interval_start", "")).strip()
         row_identifier = f"Row {row_num}" + (f": {interval_start}" if interval_start else "")
 
+        # Convert Series to dict for compatibility with existing validation methods
+        row_dict = {k: str(v).strip() for k, v in row_data.items()}
+
+        # Validate required fields
+        errors = []
+        required_fields = [
+            "interval_start",
+            "interval_end",
+            "usage",
+            "usage_unit",
+            "peak_demand",
+            "peak_demand_unit",
+        ]
+        for field in required_fields:
+            if not row_dict.get(field, ""):
+                errors.append(f"Missing required field '{field}'")
+
+        if errors:
+            self.results["errors"].append((row_identifier, errors))
+            return None
+
+        # Parse timestamps
         try:
-            # Validate required fields
-            errors = []
-            required_fields = [
-                "interval_start",
-                "interval_end",
-                "usage",
-                "usage_unit",
-                "peak_demand",
-                "peak_demand_unit",
-            ]
-            for field in required_fields:
-                if not row_data.get(field, "").strip():
-                    errors.append(f"Missing required field '{field}'")
+            interval_start_utc = self._parse_timestamp(
+                row_dict["interval_start"], self.customer_timezone
+            )
+            interval_end_utc = self._parse_timestamp(
+                row_dict["interval_end"], self.customer_timezone
+            )
+        except ValueError as e:
+            self.results["errors"].append((row_identifier, [f"Invalid timestamp: {str(e)}"]))
+            return None
 
-            if errors:
-                self.results["errors"].append((row_identifier, errors))
-                return
+        # Validate units
+        unit_errors = self._validate_units(row_dict)
+        if unit_errors:
+            self.results["errors"].append((row_identifier, unit_errors))
+            return None
 
-            # Parse timestamps
+        # Parse numeric values
+        try:
+            energy_kwh = Decimal(row_dict["usage"])
+            peak_demand_kw = Decimal(row_dict["peak_demand"])
+        except (InvalidOperation, ValueError) as e:
+            self.results["errors"].append((row_identifier, [f"Invalid numeric value: {str(e)}"]))
+            return None
+
+        # Parse temperature (optional)
+        temperature_c = None
+        temp_value = row_dict.get("temperature", "")
+        if temp_value:
             try:
-                interval_start_utc = self._parse_timestamp(
-                    row_data["interval_start"].strip(), self.customer_timezone
-                )
-                interval_end_utc = self._parse_timestamp(
-                    row_data["interval_end"].strip(), self.customer_timezone
-                )
-            except ValueError as e:
-                self.results["errors"].append((row_identifier, [f"Invalid timestamp: {str(e)}"]))
-                return
-
-            # Validate units
-            unit_errors = self._validate_units(row_data)
-            if unit_errors:
-                self.results["errors"].append((row_identifier, unit_errors))
-                return
-
-            # Parse numeric values
-            try:
-                energy_kwh = Decimal(row_data["usage"].strip())
-                peak_demand_kw = Decimal(row_data["peak_demand"].strip())
-            except (InvalidOperation, ValueError) as e:
+                temperature_raw = float(temp_value)
+                temp_unit = row_dict.get("temperature_unit", "")
+                temperature_c = self._convert_temperature_to_celsius(temperature_raw, temp_unit)
+            except (ValueError, TypeError):
                 self.results["errors"].append(
-                    (row_identifier, [f"Invalid numeric value: {str(e)}"])
+                    (row_identifier, [f"Invalid temperature value: {temp_value}"])
                 )
-                return
+                return None
 
-            # Parse temperature (optional)
-            temperature_c = None
-            temp_value = row_data.get("temperature", "").strip()
-            if temp_value:
-                try:
-                    temperature_raw = Decimal(temp_value)
-                    # Convert to Celsius if needed
-                    temp_unit = row_data.get("temperature_unit", "").strip()
-                    temperature_c = self._convert_temperature_to_celsius(temperature_raw, temp_unit)
-                except (InvalidOperation, ValueError):
-                    self.results["errors"].append(
-                        (row_identifier, [f"Invalid temperature value: {temp_value}"])
-                    )
-                    return
-
-            # Check for warnings
-            warning = self._check_demand_warning(peak_demand_kw)
-            if warning:
-                self.results["warnings"].append((row_identifier, warning))
-
-            # Import usage record in atomic transaction
-            with transaction.atomic():
-                usage, created = CustomerUsage.objects.update_or_create(
-                    customer=self.customer,
-                    interval_start_utc=interval_start_utc,
-                    defaults={
-                        "interval_end_utc": interval_end_utc,
-                        "energy_kwh": energy_kwh,
-                        "peak_demand_kw": peak_demand_kw,
-                        "temperature_c": temperature_c,
-                    },
-                )
-                # Validate model constraints (interval duration)
-                usage.full_clean()
-
-                if created:
-                    self.results["created"].append(usage)
-                else:
-                    self.results["updated"].append(usage)
-
+        # Pre-validate model constraints (interval duration) without saving
+        try:
+            temp_usage = CustomerUsage(
+                customer=self.customer,
+                interval_start_utc=interval_start_utc,
+                interval_end_utc=interval_end_utc,
+                energy_kwh=energy_kwh,
+                peak_demand_kw=peak_demand_kw,
+                temperature_c=temperature_c,
+            )
+            temp_usage.clean()
         except ValidationError as e:
-            # Extract validation error messages
             error_messages = []
             if hasattr(e, "message_dict"):
                 for field, messages in e.message_dict.items():
@@ -237,14 +243,29 @@ class UsageCSVImporter:
                 error_messages.extend(e.messages)
             else:
                 error_messages.append(str(e))
-
             self.results["errors"].append((row_identifier, error_messages))
+            return None
 
-        except Exception as e:
-            # Catch any unexpected errors
-            self.results["errors"].append((row_identifier, [str(e)]))
+        # Check for warnings
+        warning = self._check_demand_warning(peak_demand_kw)
+        if warning:
+            self.results["warnings"].append((row_identifier, warning))
 
-    def _parse_timestamp(self, timestamp_str: str, customer_timezone: zoneinfo.ZoneInfo) -> datetime:
+        return {
+            "interval_start_utc": interval_start_utc,
+            "row_identifier": row_identifier,
+            "data": {
+                "interval_start_utc": interval_start_utc,
+                "interval_end_utc": interval_end_utc,
+                "energy_kwh": energy_kwh,
+                "peak_demand_kw": peak_demand_kw,
+                "temperature_c": temperature_c,
+            },
+        }
+
+    def _parse_timestamp(
+        self, timestamp_str: str, customer_timezone: zoneinfo.ZoneInfo
+    ) -> datetime:
         """
         Parse timestamp, auto-detect if naive or aware, convert to UTC.
 
@@ -350,7 +371,7 @@ class UsageCSVImporter:
             )
         return None
 
-    def _convert_temperature_to_celsius(self, temperature_value: Decimal, unit: str) -> Decimal:
+    def _convert_temperature_to_celsius(self, temperature_value: float, unit: str) -> float:
         """
         Convert temperature to Celsius if needed.
 
@@ -366,8 +387,98 @@ class UsageCSVImporter:
         # If Fahrenheit, convert to Celsius
         if unit in ["f", "fahrenheit", "°f"]:
             # Formula: C = (F - 32) * 5/9
-            celsius = (temperature_value - Decimal("32")) * Decimal("5") / Decimal("9")
+            celsius = (temperature_value - 32) * 5 / 9
             return celsius
 
         # Already Celsius (or celsius variants)
         return temperature_value
+
+    def _get_existing_records(
+        self, interval_starts: list[datetime]
+    ) -> dict[datetime, CustomerUsage]:
+        """
+        Fetch existing usage records for the given interval starts.
+
+        Args:
+            interval_starts: List of interval_start_utc datetimes to check
+
+        Returns:
+            Dictionary mapping interval_start_utc to existing CustomerUsage objects
+        """
+        result = {}
+        for i in range(0, len(interval_starts), self.BATCH_SIZE):
+            batch = interval_starts[i : i + self.BATCH_SIZE]
+            existing = CustomerUsage.objects.filter(
+                customer=self.customer, interval_start_utc__in=batch
+            )
+            for u in existing:
+                result[u.interval_start_utc] = u
+        return result
+
+    def _split_records(
+        self, valid_records: list[dict], existing: dict[datetime, CustomerUsage]
+    ) -> tuple[list[dict], list[dict]]:
+        """
+        Split valid records into create and update lists.
+
+        Args:
+            valid_records: List of validated record dictionaries
+            existing: Dictionary of existing records keyed by interval_start_utc
+
+        Returns:
+            Tuple of (to_create, to_update) record lists
+        """
+        to_create = []
+        to_update = []
+
+        for record in valid_records:
+            if record["interval_start_utc"] in existing:
+                to_update.append(record)
+            else:
+                to_create.append(record)
+
+        return to_create, to_update
+
+    def _bulk_create(self, records: list[dict]):
+        """
+        Bulk create new usage records.
+
+        Args:
+            records: List of validated record dictionaries to create
+        """
+        if not records:
+            return
+
+        objects = [CustomerUsage(customer=self.customer, **record["data"]) for record in records]
+        for i in range(0, len(objects), self.BATCH_SIZE):
+            batch = objects[i : i + self.BATCH_SIZE]
+            created = CustomerUsage.objects.bulk_create(batch)
+            self.results["created"].extend(created)
+
+    def _bulk_update(self, records: list[dict], existing: dict[datetime, CustomerUsage]):
+        """
+        Bulk update existing usage records.
+
+        Args:
+            records: List of validated record dictionaries to update
+            existing: Dictionary of existing records keyed by interval_start_utc
+        """
+        if not records:
+            return
+
+        updated_objects = []
+        for record in records:
+            obj = existing[record["interval_start_utc"]]
+            obj.interval_end_utc = record["data"]["interval_end_utc"]
+            obj.energy_kwh = record["data"]["energy_kwh"]
+            obj.peak_demand_kw = record["data"]["peak_demand_kw"]
+            obj.temperature_c = record["data"]["temperature_c"]
+            updated_objects.append(obj)
+
+        for i in range(0, len(updated_objects), self.BATCH_SIZE):
+            batch = updated_objects[i : i + self.BATCH_SIZE]
+            CustomerUsage.objects.bulk_update(
+                batch,
+                fields=["interval_end_utc", "energy_kwh", "peak_demand_kw", "temperature_c"],
+            )
+        self.results["updated"].extend(updated_objects)

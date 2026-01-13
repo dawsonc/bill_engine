@@ -141,9 +141,7 @@ class UsageAnalyticsTests(TestCase):
 
         # Expected intervals should be roughly 5 days worth
         # 5 days * 24 hours * 12 intervals/hour = ~1440 intervals
-        self.assertLess(
-            current_month_gap.expected_intervals, 10000
-        )  # Much less than full month
+        self.assertLess(current_month_gap.expected_intervals, 10000)  # Much less than full month
         self.assertGreater(current_month_gap.expected_intervals, 1000)  # But non-zero
 
     def test_analyze_gaps_partial_month_current(self):
@@ -153,9 +151,7 @@ class UsageAnalyticsTests(TestCase):
 
         tz = zoneinfo.ZoneInfo(str(self.customer.timezone))
         now_local = timezone.now().astimezone(tz)
-        month_start_local = datetime(
-            now_local.year, now_local.month, 1, 0, 0, 0, tzinfo=tz
-        )
+        month_start_local = datetime(now_local.year, now_local.month, 1, 0, 0, 0, tzinfo=tz)
         month_start_utc = month_start_local.astimezone(dt_timezone.utc)
 
         self.customer.created_at = month_start_utc
@@ -231,9 +227,7 @@ class UsageAnalyticsTests(TestCase):
 
         # 30-minute intervals should have fewer expected intervals than 15-minute
         # for the same time period
-        self.assertLess(
-            gaps_30[0].expected_intervals, gaps_15[0].expected_intervals
-        )
+        self.assertLess(gaps_30[0].expected_intervals, gaps_15[0].expected_intervals)
 
     def test_get_month_boundaries_count(self):
         """Test correct number of month boundaries returned."""
@@ -269,9 +263,7 @@ class UsageAnalyticsTests(TestCase):
         utc_offset_hours = (
             month_start_utc - month_start_local.replace(tzinfo=dt_timezone.utc)
         ).total_seconds() / 3600
-        self.assertIn(
-            utc_offset_hours, [7.0, 8.0]
-        )  # 7 during DST, 8 during standard time
+        self.assertIn(utc_offset_hours, [7.0, 8.0])  # 7 during DST, 8 during standard time
 
     def test_analyze_gaps_dst_transition(self):
         """Test handling of DST transitions."""

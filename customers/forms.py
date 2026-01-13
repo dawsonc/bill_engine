@@ -77,9 +77,7 @@ class UsageChartDateRangeForm(forms.Form):
         if start and end:
             # Validate start before end
             if start > end:
-                raise forms.ValidationError(
-                    "Start date must be before or equal to end date."
-                )
+                raise forms.ValidationError("Start date must be before or equal to end date.")
 
             # Validate not too far in future
             if self.customer:

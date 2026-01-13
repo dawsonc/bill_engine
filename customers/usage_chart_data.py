@@ -37,9 +37,7 @@ def get_usage_timeseries_data(customer, start_date_local, end_date_local):
     customer_tz = zoneinfo.ZoneInfo(str(customer.timezone))
 
     # Start: midnight on start_date_local
-    start_local = datetime.combine(
-        start_date_local, datetime.min.time(), tzinfo=customer_tz
-    )
+    start_local = datetime.combine(start_date_local, datetime.min.time(), tzinfo=customer_tz)
     start_utc = start_local.astimezone(dt_timezone.utc)
 
     # End: midnight on day after end_date_local (to make end_date inclusive)
@@ -103,9 +101,7 @@ def get_usage_timeseries_data(customer, start_date_local, end_date_local):
         }
     else:
         # Use full resolution data
-        usage_records = usage_queryset.only(
-            "interval_start_utc", "energy_kwh", "peak_demand_kw"
-        )
+        usage_records = usage_queryset.only("interval_start_utc", "energy_kwh", "peak_demand_kw")
 
         timestamps = []
         energy_kwh = []

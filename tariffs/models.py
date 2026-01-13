@@ -159,10 +159,11 @@ class DemandCharge(models.Model):
     def clean(self):
         """Validate charge constraints."""
         # Validate time period
-        if self.period_end_time_local <= self.period_start_time_local:
-            raise ValidationError(
-                {"period_end_time_local": "Period end time must be after period start time."}
-            )
+        if self.period_end_time_local and self.period_start_time_local:
+            if self.period_end_time_local <= self.period_start_time_local:
+                raise ValidationError(
+                    {"period_end_time_local": "Period end time must be after period start time."}
+                )
 
         # Validate date range (only if both dates are provided)
         # Compare only month/day by normalizing to year 2000
@@ -171,6 +172,8 @@ class DemandCharge(models.Model):
                 2000, self.applies_start_date.month, self.applies_start_date.day
             )
             end_normalized = date(2000, self.applies_end_date.month, self.applies_end_date.day)
+            print(start_normalized)
+            print(end_normalized)
             if end_normalized < start_normalized:
                 raise ValidationError(
                     {"applies_end_date": "Applicable end date must be on or after the start date."}

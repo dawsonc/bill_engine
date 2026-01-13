@@ -16,59 +16,17 @@
   <p>Customer timezone: {{ customer.timezone }}</p>
 </div>
 
-{% if results.created %}
+{% if results.created or results.updated %}
 <div class="module">
-  <h2 style="color: #0c4b33;">Successfully Created ({{ results.created|length }})</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Interval Start (UTC)</th>
-        <th>Interval End (UTC)</th>
-        <th>Energy (kWh)</th>
-        <th>Peak Demand (kW)</th>
-        <th>Temperature (°C)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for usage in results.created %}
-      <tr>
-        <td><a href="{% url 'admin:usage_customerusage_change' usage.pk %}">{{ usage.interval_start_utc }}</a></td>
-        <td>{{ usage.interval_end_utc }}</td>
-        <td>{{ usage.energy_kwh }}</td>
-        <td>{{ usage.peak_demand_kw }}</td>
-        <td>{% if usage.temperature_c %}{{ usage.temperature_c }}{% else %}-{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-
-{% if results.updated %}
-<div class="module">
-  <h2 style="color: #1e5a8e;">Successfully Updated ({{ results.updated|length }})</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Interval Start (UTC)</th>
-        <th>Interval End (UTC)</th>
-        <th>Energy (kWh)</th>
-        <th>Peak Demand (kW)</th>
-        <th>Temperature (°C)</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for usage in results.updated %}
-      <tr>
-        <td><a href="{% url 'admin:usage_customerusage_change' usage.pk %}">{{ usage.interval_start_utc }}</a></td>
-        <td>{{ usage.interval_end_utc }}</td>
-        <td>{{ usage.energy_kwh }}</td>
-        <td>{{ usage.peak_demand_kw }}</td>
-        <td>{% if usage.temperature_c %}{{ usage.temperature_c }}{% else %}-{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <h2 style="color: #0c4b33;">Import Summary</h2>
+  <ul class="summary-list">
+    {% if results.created %}
+    <li><strong>{{ results.created|length }}</strong> record{{ results.created|length|pluralize }} created</li>
+    {% endif %}
+    {% if results.updated %}
+    <li><strong>{{ results.updated|length }}</strong> record{{ results.updated|length|pluralize }} updated</li>
+    {% endif %}
+  </ul>
 </div>
 {% endif %}
 
@@ -114,6 +72,16 @@
 </div>
 
 <style>
+  .summary-list {
+    font-size: 1.1em;
+    margin: 10px 0;
+    padding-left: 20px;
+  }
+
+  .summary-list li {
+    margin: 5px 0;
+  }
+
   .warning {
     color: #ba6900;
   }

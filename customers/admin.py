@@ -1,7 +1,16 @@
+import json
+
 from django.contrib import admin
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import path
+
+from customers.forms import UsageChartDateRangeForm
+from customers.usage_analytics import analyze_usage_gaps
+from customers.usage_chart_data import (
+    get_default_date_range,
+    get_usage_timeseries_data,
+)
 
 from .csv_service import CustomerCSVExporter, CustomerCSVImporter
 from .forms import CustomerCSVUploadForm
@@ -111,18 +120,8 @@ class CustomerAdmin(admin.ModelAdmin):
                 customer = self.get_object(request, object_id)
                 if customer:
                     # Existing gap warnings code
-                    from customers.usage_analytics import analyze_usage_gaps
-
-                    gap_warnings = analyze_usage_gaps(customer, months=12)
+                    gap_warnings = analyze_usage_gaps(customer)
                     extra_context["usage_gap_warnings"] = gap_warnings
-
-                    # NEW: Usage chart data
-                    from customers.forms import UsageChartDateRangeForm
-                    from customers.usage_chart_data import (
-                        get_default_date_range,
-                        get_usage_timeseries_data,
-                    )
-                    import json
 
                     # Parse date range from GET parameters or use defaults
                     chart_form = UsageChartDateRangeForm(
@@ -143,9 +142,7 @@ class CustomerAdmin(admin.ModelAdmin):
                         )
 
                     # Get chart data
-                    chart_data = get_usage_timeseries_data(
-                        customer, start_date, end_date
-                    )
+                    chart_data = get_usage_timeseries_data(customer, start_date, end_date)
 
                     # Serialize to JSON for JavaScript
                     chart_data_json = json.dumps(chart_data)
@@ -160,13 +157,7 @@ class CustomerAdmin(admin.ModelAdmin):
                 import logging
 
                 logger = logging.getLogger(__name__)
-                logger.exception(
-                    f"Error preparing data for customer {object_id}: {e}"
-                )
-
-                # Set empty chart data so template doesn't break
-                from customers.forms import UsageChartDateRangeForm
-                import json
+                logger.exception(f"Error preparing data for customer {object_id}: {e}")
 
                 extra_context["usage_gap_warnings"] = []
                 extra_context["chart_date_form"] = UsageChartDateRangeForm(
@@ -179,8 +170,6 @@ class CustomerAdmin(admin.ModelAdmin):
                     "peak_demand_kw": [],
                     "point_count": 0,
                 }
-                extra_context["chart_data_json"] = json.dumps(
-                    extra_context["chart_data"]
-                )
+                extra_context["chart_data_json"] = json.dumps(extra_context["chart_data"])
 
         return super().changeform_view(request, object_id, form_url, extra_context)

@@ -35,9 +35,7 @@ class CustomerUsage(models.Model):
         decimal_places=4,
         help_text="Peak power demand in kW during this interval",
     )
-    temperature_c = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
+    temperature_c = models.FloatField(
         null=True,
         blank=True,
         help_text="Temperature in Celsius (optional)",

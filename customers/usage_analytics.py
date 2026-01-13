@@ -4,9 +4,10 @@ Analytics for customer usage data quality.
 Provides functions to detect and analyze gaps in usage data.
 """
 
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone as dt_timezone
 import zoneinfo
+from dataclasses import dataclass
+from datetime import datetime
+from datetime import timezone as dt_timezone
 
 from django.utils import timezone
 
@@ -71,9 +72,7 @@ def get_month_boundaries_in_customer_tz(
             next_month = 1
             next_year += 1
 
-        month_end_local = datetime(
-            next_year, next_month, 1, 0, 0, 0, tzinfo=customer_tz
-        )
+        month_end_local = datetime(next_year, next_month, 1, 0, 0, 0, tzinfo=customer_tz)
 
         # Convert to UTC for database queries
         month_start_utc = month_start_local.astimezone(dt_timezone.utc)
@@ -84,7 +83,7 @@ def get_month_boundaries_in_customer_tz(
     return boundaries
 
 
-def analyze_usage_gaps(customer, months: int = 12) -> list[MonthlyGapSummary]:
+def analyze_usage_gaps(customer, months: int = 60) -> list[MonthlyGapSummary]:
     """
     Analyze usage data gaps for a customer over the last N months.
 
@@ -93,7 +92,7 @@ def analyze_usage_gaps(customer, months: int = 12) -> list[MonthlyGapSummary]:
 
     Args:
         customer: Customer instance
-        months: Number of months to analyze (default: 12)
+        months: Number of months to analyze (default: 60)
 
     Returns:
         List of MonthlyGapSummary objects (only months with gaps)
@@ -103,10 +102,18 @@ def analyze_usage_gaps(customer, months: int = 12) -> list[MonthlyGapSummary]:
 
     gap_summaries = []
 
+    earliest_usage = (
+        CustomerUsage.objects.filter(customer=customer).order_by("interval_start_utc").first()
+    )
+    if earliest_usage is not None:
+        earliest_date_utc = min(customer.created_at, earliest_usage.interval_start_utc)
+    else:
+        earliest_date_utc = customer.created_at
+
     for month_start_local, month_start_utc, month_end_utc in boundaries:
         # Determine effective range for this month
         # (handle customer created mid-month and current incomplete month)
-        effective_start_utc = max(customer.created_at, month_start_utc)
+        effective_start_utc = max(earliest_date_utc, month_start_utc)
         effective_end_utc = min(now_utc, month_end_utc)
 
         # Skip if the customer didn't exist yet or if range is invalid

@@ -53,7 +53,7 @@ class UsageCSVImporterTests(TestCase):
         # Check first record
         usage1 = CustomerUsage.objects.get(customer=self.customer, energy_kwh=Decimal("5.25"))
         self.assertEqual(usage1.peak_demand_kw, Decimal("63.0"))
-        self.assertEqual(usage1.temperature_c, Decimal("22.5"))
+        self.assertEqual(usage1.temperature_c, 22.5)
 
     def test_import_with_utc_timestamps(self):
         """Test importing usage data with UTC timestamps."""
@@ -97,8 +97,12 @@ class UsageCSVImporterTests(TestCase):
         # Create existing usage record
         CustomerUsage.objects.create(
             customer=self.customer,
-            interval_start_utc=datetime.datetime(2024, 1, 15, 22, 30, 0, tzinfo=datetime.timezone.utc),
-            interval_end_utc=datetime.datetime(2024, 1, 15, 22, 35, 0, tzinfo=datetime.timezone.utc),
+            interval_start_utc=datetime.datetime(
+                2024, 1, 15, 22, 30, 0, tzinfo=datetime.timezone.utc
+            ),
+            interval_end_utc=datetime.datetime(
+                2024, 1, 15, 22, 35, 0, tzinfo=datetime.timezone.utc
+            ),
             energy_kwh=Decimal("10.00"),
             peak_demand_kw=Decimal("50.0"),
         )
@@ -123,7 +127,9 @@ class UsageCSVImporterTests(TestCase):
         # Verify updated record has new values
         usage = CustomerUsage.objects.get(
             customer=self.customer,
-            interval_start_utc=datetime.datetime(2024, 1, 15, 22, 30, 0, tzinfo=datetime.timezone.utc),
+            interval_start_utc=datetime.datetime(
+                2024, 1, 15, 22, 30, 0, tzinfo=datetime.timezone.utc
+            ),
         )
         self.assertEqual(usage.energy_kwh, Decimal("5.25"))
         self.assertEqual(usage.peak_demand_kw, Decimal("63.0"))
@@ -328,9 +334,15 @@ class UsageCSVImporterTests(TestCase):
         self.assertEqual(len(results["errors"]), 0)
 
         # Both should be stored as Celsius
-        usage_records = CustomerUsage.objects.filter(customer=self.customer).order_by('interval_start_utc')
-        self.assertAlmostEqual(float(usage_records[0].temperature_c), 22.5, places=1)  # Was already C
-        self.assertAlmostEqual(float(usage_records[1].temperature_c), 22.5, places=1)  # Converted from 72.5°F
+        usage_records = CustomerUsage.objects.filter(customer=self.customer).order_by(
+            "interval_start_utc"
+        )
+        self.assertAlmostEqual(
+            float(usage_records[0].temperature_c), 22.5, places=1
+        )  # Was already C
+        self.assertAlmostEqual(
+            float(usage_records[1].temperature_c), 22.5, places=1
+        )  # Converted from 72.5°F
 
     def test_fahrenheit_conversion_precision(self):
         """Test that Fahrenheit conversion maintains precision."""
@@ -443,13 +455,13 @@ class UsageCSVImporterTests(TestCase):
         """Test that various datetime formats are all parsed correctly."""
         # Note: Formats containing commas would need to be quoted in real CSV files
         formats = [
-            "2024-01-15 14:30:00",      # Standard
-            "2024-01-15T14:30:00",      # ISO 8601
-            "01/15/2024 14:30:00",      # US format
-            "1/15/2024 2:30:00 PM",     # US with AM/PM
-            "15 Jan 2024 14:30:00",     # Month name (no comma)
-            "15-Jan-2024 14:30:00",     # Day-Month-Year
-            "2024/01/15 14:30:00",      # Slash separator
+            "2024-01-15 14:30:00",  # Standard
+            "2024-01-15T14:30:00",  # ISO 8601
+            "01/15/2024 14:30:00",  # US format
+            "1/15/2024 2:30:00 PM",  # US with AM/PM
+            "15 Jan 2024 14:30:00",  # Month name (no comma)
+            "15-Jan-2024 14:30:00",  # Day-Month-Year
+            "2024/01/15 14:30:00",  # Slash separator
         ]
 
         for fmt in formats:

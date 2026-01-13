@@ -76,9 +76,7 @@ class CustomerUsageTests(TestCase):
             interval_start_utc=datetime.datetime(
                 2024, 7, 4, 12, 5, 0, tzinfo=datetime.timezone.utc
             ),
-            interval_end_utc=datetime.datetime(
-                2024, 7, 4, 12, 10, 0, tzinfo=datetime.timezone.utc
-            ),
+            interval_end_utc=datetime.datetime(2024, 7, 4, 12, 10, 0, tzinfo=datetime.timezone.utc),
             energy_kwh=6.0,
             peak_demand_kw=70.0,
         )
