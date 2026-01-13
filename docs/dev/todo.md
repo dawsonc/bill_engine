@@ -1,2 +1,2 @@
 - [ ] make billing engine support different billing months (and add that info to the tariff model)
-- [ ] check applicability work year-after-year
+- [ ] fix allocation of monthly customer charges to billing month. should be by fraction of calendar month, not fraction of billing month

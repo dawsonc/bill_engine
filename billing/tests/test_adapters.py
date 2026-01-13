@@ -211,14 +211,31 @@ def test_demand_charge_invalid_peak_type_raises_error(tariff):
 def test_customer_charge_conversion(tariff):
     """Test converting CustomerCharge model to DTO."""
     charge = CustomerCharge.objects.create(
-        tariff=tariff, name="Monthly Service Fee", usd_per_month=Decimal("25.00")
+        tariff=tariff, name="Monthly Service Fee", amount_usd=Decimal("25.00")
     )
 
     dto = customer_charge_to_dto(charge)
 
     assert dto.name == "Monthly Service Fee"
-    assert dto.amount_usd_per_month == Decimal("25.00")
-    # CustomerCharge has no applicability rule
+    assert dto.amount_usd == Decimal("25.00")
+    assert dto.type.value == "monthly"  # Default charge type
+    assert dto.charge_id is not None
+
+
+def test_customer_charge_daily_conversion(tariff):
+    """Test converting daily CustomerCharge model to DTO."""
+    charge = CustomerCharge.objects.create(
+        tariff=tariff,
+        name="Daily Service Fee",
+        amount_usd=Decimal("1.50"),
+        charge_type="daily",
+    )
+
+    dto = customer_charge_to_dto(charge)
+
+    assert dto.name == "Daily Service Fee"
+    assert dto.amount_usd == Decimal("1.50")
+    assert dto.type.value == "daily"
     assert dto.charge_id is not None
 
 
@@ -263,7 +280,7 @@ def test_tariff_to_charge_list_counts(utility):
         applies_holidays=True,
     )
 
-    CustomerCharge.objects.create(tariff=tariff, name="Service Fee", usd_per_month=Decimal("20.00"))
+    CustomerCharge.objects.create(tariff=tariff, name="Service Fee", amount_usd=Decimal("20.00"))
 
     tariff = Tariff.objects.prefetch_related(
         "energy_charges", "demand_charges", "customer_charges"
@@ -277,7 +294,7 @@ def test_tariff_to_charge_list_counts(utility):
 
 
 def test_tariff_to_charge_list_immutability(utility):
-    """Test that ChargeList uses tuples (immutable)."""
+    """Test that Tariff uses tuples (immutable)."""
     tariff = Tariff.objects.create(utility=utility, name="Test Tariff")
 
     EnergyCharge.objects.create(

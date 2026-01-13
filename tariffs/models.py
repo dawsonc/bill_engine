@@ -188,8 +188,15 @@ class DemandCharge(models.Model):
 
 class CustomerCharge(models.Model):
     """
-    Represents a fixed monthly customer charge for a tariff.
+    Represents a fixed recurring customer charge for a tariff.
+
+    Can be either a daily or monthly charge.
     """
+
+    CHARGE_TYPE_CHOICES = [
+        ("daily", "Daily"),
+        ("monthly", "Monthly"),
+    ]
 
     tariff = models.ForeignKey(
         Tariff,
@@ -198,14 +205,21 @@ class CustomerCharge(models.Model):
         help_text="Tariff this charge belongs to",
     )
     name = models.CharField(max_length=200, help_text="Name of the charge (e.g., Customer Charge)")
-    usd_per_month = models.DecimalField(
+    amount_usd = models.DecimalField(
         max_digits=10,
         decimal_places=5,
-        help_text="Fixed charge in $/month",
+        help_text="Fixed charge amount in USD (per day or per month depending on charge_type)",
+    )
+    charge_type = models.CharField(
+        max_length=10,
+        choices=CHARGE_TYPE_CHOICES,
+        default="monthly",
+        help_text="Whether this is a daily or monthly charge",
     )
 
     class Meta:
         ordering = ["tariff", "name"]
 
     def __str__(self):
-        return f"{self.tariff.name} - {self.name} (${self.usd_per_month}/month)"
+        period = "day" if self.charge_type == "daily" else "month"
+        return f"{self.tariff.name} - {self.name} (${self.amount_usd}/{period})"

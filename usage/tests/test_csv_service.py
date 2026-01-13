@@ -22,7 +22,7 @@ class UsageCSVImporterTests(TestCase):
         self.utility = Utility.objects.create(name="Test Utility")
         self.tariff = Tariff.objects.create(name="Test Tariff", utility=self.utility)
         CustomerCharge.objects.create(
-            tariff=self.tariff, name="Base Charge", usd_per_month=Decimal("10.00")
+            tariff=self.tariff, name="Base Charge", amount_usd=Decimal("10.00")
         )
         self.customer = Customer.objects.create(
             name="Test Customer",

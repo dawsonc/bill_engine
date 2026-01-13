@@ -4,9 +4,12 @@ Shared fixtures for billing tests.
 Consolidates DataFrame creation and Django model fixtures used across test files.
 """
 
+from datetime import date
+
 import pandas as pd
 import pytest
 
+from billing.core.util import _derive_calendar_months, _trim_to_date_range
 from tariffs.models import Tariff
 from utilities.models import Utility
 
@@ -37,6 +40,7 @@ def usage_df_factory():
         is_weekday: bool | list | None = None,
         is_weekend: bool | list | None = None,
         is_holiday: bool | list | None = None,
+        billing_periods: list[tuple[date, date]] | None = None,
     ) -> pd.DataFrame:
         """Create usage DataFrame with configurable parameters.
 
@@ -53,6 +57,9 @@ def usage_df_factory():
                        If list, use provided values.
             is_holiday: If None, default to False for all. If bool, use for all periods.
                        If list, use provided values.
+            billing_periods: Optional list of (start_date, end_date) tuples defining
+                billing periods. Both dates are inclusive. If None, uses calendar months
+                derived from the usage data.
 
         Returns:
             DataFrame with columns: interval_start, interval_end, kwh, kw,
@@ -84,7 +91,7 @@ def usage_df_factory():
         elif isinstance(is_holiday, bool):
             is_holiday = [is_holiday] * periods
 
-        return pd.DataFrame(
+        usage = pd.DataFrame(
             {
                 "interval_start": interval_starts,
                 "interval_end": interval_starts + pd.Timedelta(freq),
@@ -95,6 +102,28 @@ def usage_df_factory():
                 "is_holiday": is_holiday,
             }
         )
+
+        # add billing periods
+
+        # If billing_periods not provided, derive from calendar months in the data
+        if billing_periods is None:
+            billing_periods = _derive_calendar_months(usage)
+
+        # Trim the data down to just the billing periods
+        billing_start_date = min(period[0] for period in billing_periods)
+        billing_end_date = max(period[1] for period in billing_periods)
+        usage = _trim_to_date_range(usage, billing_start_date, billing_end_date)
+
+        # Label with billing months
+        usage["billing_period"] = None
+        for period_start, period_end in billing_periods:
+            period_str = f"{period_start:%Y-%m} -- {period_end:%Y-%m}"
+            mask = (usage["interval_start"].dt.date >= period_start) & (
+                usage["interval_start"].dt.date <= period_end
+            )
+            usage.loc[mask, "billing_period"] = period_str
+
+        return usage
 
     return _create_usage_df
 

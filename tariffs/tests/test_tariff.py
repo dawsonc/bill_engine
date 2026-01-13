@@ -48,7 +48,7 @@ class TariffModelTests(TestCase):
         CustomerCharge.objects.create(
             tariff=tariff,
             name="Basic Service",
-            usd_per_month=Decimal("15.00"),
+            amount_usd=Decimal("15.00"),
         )
 
         # Verify charges exist

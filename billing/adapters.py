@@ -12,12 +12,13 @@ from uuid import UUID, uuid5
 from billing.core.types import (
     ApplicabilityRule,
     ChargeId,
-    ChargeList,
     CustomerCharge,
+    CustomerChargeType,
     DayType,
     DemandCharge,
     EnergyCharge,
     PeakType,
+    Tariff,
 )
 from tariffs.models import (
     CustomerCharge as CustomerChargeModel,
@@ -29,7 +30,7 @@ from tariffs.models import (
     EnergyCharge as EnergyChargeModel,
 )
 from tariffs.models import (
-    Tariff,
+    Tariff as TariffModel,
 )
 
 # Custom namespace for generating deterministic UUIDs from database IDs
@@ -223,19 +224,31 @@ def customer_charge_to_dto(charge: CustomerChargeModel) -> CustomerCharge:
 
     Returns:
         CustomerCharge DTO with deterministic ChargeId
+
+    Raises:
+        ValueError: If charge_type has an invalid value
     """
     charge_id = generate_charge_id("CustomerCharge", charge.pk)
 
+    # Map Django's string choice to CustomerChargeType enum
+    if charge.charge_type == "daily":
+        charge_type = CustomerChargeType.DAILY
+    elif charge.charge_type == "monthly":
+        charge_type = CustomerChargeType.MONTHLY
+    else:
+        raise ValueError(f"Invalid charge_type: {charge.charge_type}")
+
     return CustomerCharge(
         name=charge.name,
-        amount_usd_per_month=charge.usd_per_month,
+        amount_usd=charge.amount_usd,
+        type=charge_type,
         charge_id=charge_id,
     )
 
 
-def tariff_to_charge_list(tariff: Tariff) -> ChargeList:
+def tariff_to_charge_list(tariff: TariffModel) -> Tariff:
     """
-    Convert a Django Tariff model with all related charges to a ChargeList DTO.
+    Convert a Django Tariff model with all related charges to a Tariff DTO.
 
     This is the main entry point for adapter conversion. It aggregates all
     charge types from the tariff's related managers and converts them to DTOs.
@@ -253,7 +266,7 @@ def tariff_to_charge_list(tariff: Tariff) -> ChargeList:
         tariff: Django Tariff model instance (preferably with prefetched charges)
 
     Returns:
-        ChargeList DTO containing tuples of all charge DTOs
+        Tariff DTO containing tuples of all charge DTOs
 
     Examples:
         >>> from tariffs.models import Tariff
@@ -265,7 +278,7 @@ def tariff_to_charge_list(tariff: Tariff) -> ChargeList:
         3
     """
     # Convert each charge type using dedicated helper functions
-    # Use tuple() for immutability as required by ChargeList
+    # Use tuple() for immutability as required by Tariff
     energy_charges = tuple(energy_charge_to_dto(charge) for charge in tariff.energy_charges.all())
 
     demand_charges = tuple(demand_charge_to_dto(charge) for charge in tariff.demand_charges.all())
@@ -274,16 +287,16 @@ def tariff_to_charge_list(tariff: Tariff) -> ChargeList:
         customer_charge_to_dto(charge) for charge in tariff.customer_charges.all()
     )
 
-    return ChargeList(
+    return Tariff(
         energy_charges=energy_charges,
         demand_charges=demand_charges,
         customer_charges=customer_charges,
     )
 
 
-def tariffs_to_charge_lists(tariffs_queryset) -> dict[int, ChargeList]:
+def tariffs_to_charge_lists(tariffs_queryset) -> dict[int, Tariff]:
     """
-    Batch convert multiple tariffs to ChargeList DTOs.
+    Batch convert multiple tariffs to Tariff DTOs.
 
     This is a convenience function for bulk conversions. It automatically
     handles prefetching for optimal performance.
@@ -292,7 +305,7 @@ def tariffs_to_charge_lists(tariffs_queryset) -> dict[int, ChargeList]:
         tariffs_queryset: Django QuerySet of Tariff objects
 
     Returns:
-        Dictionary mapping tariff.pk to ChargeList DTO
+        Dictionary mapping tariff.pk to Tariff DTO
 
     Examples:
         >>> from tariffs.models import Tariff

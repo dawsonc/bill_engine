@@ -17,7 +17,7 @@ class CustomerChargeModelTests(TestCase):
         charge = CustomerCharge.objects.create(
             tariff=self.tariff,
             name="Basic Service",
-            usd_per_month=Decimal("15.00"),
+            amount_usd=Decimal("15.00"),
         )
         self.assertIsNotNone(charge.pk)
         self.assertEqual(str(charge), "B-19 - Basic Service ($15.00/month)")
@@ -27,12 +27,12 @@ class CustomerChargeModelTests(TestCase):
         CustomerCharge.objects.create(
             tariff=self.tariff,
             name="Basic Service",
-            usd_per_month=Decimal("15.00"),
+            amount_usd=Decimal("15.00"),
         )
         CustomerCharge.objects.create(
             tariff=self.tariff,
             name="Meter Charge",
-            usd_per_month=Decimal("5.00"),
+            amount_usd=Decimal("5.00"),
         )
 
         self.assertEqual(CustomerCharge.objects.count(), 2)

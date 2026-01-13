@@ -12,4 +12,4 @@ tariffs:
     demand_charges: []
     customer_charges:
       - name: "Customer Charge"
-        usd_per_month: 15.00
+        amount_usd: 15.00

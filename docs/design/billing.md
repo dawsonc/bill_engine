@@ -71,3 +71,15 @@ def validate_usage_dataframe(usage: pd.DataFrame):
 `billing.services` defines a BillingService class that provides a `calculate_bill(customer, usage)` function. The service is allowed to interact with the django ORM and will orchestrate the pipeline defined above.
 
 `billing.adapters` provides lightweight mappings from Django models to DTOs
+
+
+### Handling billing months
+
+- Energy charges are just summed over intervals
+- Customer charges
+    - Daily customer charges are allocated to days and summed
+    - Monthly customer charges are allocated by billing month
+- Demand charges
+    - Daily demand charges are allocated to days and summed
+    - Monthly demand charges are allocated by billing month
+        - All demand charges should be scaled by the fraction of calendar days they apply to / total days in billing period

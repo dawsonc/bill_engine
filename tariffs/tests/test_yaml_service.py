@@ -54,7 +54,7 @@ class TariffYAMLExporterTests(TestCase):
         CustomerCharge.objects.create(
             tariff=self.tariff,
             name="Basic Service",
-            usd_per_month=Decimal("15.00"),
+            amount_usd=Decimal("15.00"),
         )
 
     def test_export_tariff_structure(self):
@@ -95,7 +95,7 @@ class TariffYAMLExporterTests(TestCase):
         self.assertIn("rate_usd_per_kwh: 0.15432", yaml_str)
         # Demand/customer rates should have 2 decimal places (as originally specified)
         self.assertIn("rate_usd_per_kw: 18.50", yaml_str)
-        self.assertIn("usd_per_month: 15.00", yaml_str)
+        self.assertIn("amount_usd: 15.00", yaml_str)
 
     def test_export_null_dates(self):
         """Test that null dates are exported as null."""
@@ -219,7 +219,7 @@ tariffs:
         # Create existing tariff with different charges
         tariff = Tariff.objects.create(name="B-19", utility=self.utility)
         CustomerCharge.objects.create(
-            tariff=tariff, name="Old Charge", usd_per_month=Decimal("10.00")
+            tariff=tariff, name="Old Charge", amount_usd=Decimal("10.00")
         )
 
         yaml_content = (self.fixtures_dir / "duplicate_tariffs.yaml").read_text()
@@ -361,7 +361,7 @@ class TariffYAMLRoundtripTests(TestCase):
         CustomerCharge.objects.create(
             tariff=tariff,
             name="Basic Service",
-            usd_per_month=Decimal("15.00"),
+            amount_usd=Decimal("15.00"),
         )
 
         # Export

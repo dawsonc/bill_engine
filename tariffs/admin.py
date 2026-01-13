@@ -85,7 +85,7 @@ class DemandChargeInline(admin.TabularInline):
 class CustomerChargeInline(admin.TabularInline):
     model = CustomerCharge
     extra = 1
-    fields = ["name", "usd_per_month"]
+    fields = ["name", "amount_usd", "charge_type"]
 
 
 @admin.register(Tariff)
@@ -215,6 +215,6 @@ class DemandChargeAdmin(admin.ModelAdmin):
 
 @admin.register(CustomerCharge)
 class CustomerChargeAdmin(admin.ModelAdmin):
-    list_display = ["name", "tariff", "usd_per_month"]
-    list_filter = ["tariff"]
+    list_display = ["name", "tariff", "amount_usd", "charge_type"]
+    list_filter = ["tariff", "charge_type"]
     search_fields = ["name", "tariff__name"]

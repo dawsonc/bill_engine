@@ -4,7 +4,7 @@ Logic for applying customer charges to bills.
 
 import pandas as pd
 
-from ..types import CustomerCharge
+from ..types import CustomerCharge, CustomerChargeType
 
 
 def apply_customer_charge(
@@ -12,21 +12,28 @@ def apply_customer_charge(
     customer_charge: CustomerCharge,
 ) -> pd.Series:
     """
-    Estimate the customer charge by allocating it evenly to all intervals in each month.
+    Apply customer charge to usage data based on charge type.
+
+    - MONTHLY: Allocate monthly amount evenly to all intervals in each month
+    - DAILY: Allocate daily amount evenly to all intervals in each day
 
     Args:
         usage: a dataframe of usage, as validated by `billing.core.data.validate_usage_dataframe
         customer_charge: the charge to apply
+
+    Returns:
+        Series with per-interval customer charge amounts
     """
-    # Customer charges are applicable to all intervals,
-    # but they are spread across each month
-    usage["_year_month"] = usage["interval_start"].dt.strftime("%Y-%m")
-    intervals_per_month = usage.groupby("_year_month").size()
-    allocated_customer_charge = usage["_year_month"].map(
-        lambda ym: customer_charge.amount_usd_per_month / intervals_per_month[ym]
+    if customer_charge.type == CustomerChargeType.DAILY:
+        # Group by date and allocate daily charge evenly across intervals
+        usage["_customer_charge_period"] = usage["interval_start"].dt.date
+    else:
+        # Allocate monthly charge evenly across intervals
+        usage["_customer_charge_period"] = usage["billing_period"]
+
+    intervals_per_period = usage.groupby("_customer_charge_period").size()
+    allocated_charge = usage["_customer_charge_period"].map(
+        lambda d: customer_charge.amount_usd / intervals_per_period[d]
     )
-
-    # Clean up temporary columns
-    usage.drop(columns=["_year_month"], inplace=True)
-
-    return allocated_customer_charge
+    usage.drop(columns=["_customer_charge_period"], inplace=True)
+    return allocated_charge

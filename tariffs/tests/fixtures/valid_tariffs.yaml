@@ -33,9 +33,9 @@ tariffs:
         applies_holidays: false
     customer_charges:
       - name: "Basic Service"
-        usd_per_month: 15.00
+        amount_usd: 15.00
       - name: "Meter Charge"
-        usd_per_month: 5.00
+        amount_usd: 5.00
 
   - name: "E-19 Secondary"
     utility: "PG&E"
@@ -52,4 +52,4 @@ tariffs:
     demand_charges: []
     customer_charges:
       - name: "Customer Charge"
-        usd_per_month: 20.00
+        amount_usd: 20.00

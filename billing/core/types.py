@@ -27,6 +27,13 @@ class PeakType(str, Enum):
     MONTHLY = "monthly"
 
 
+class CustomerChargeType(str, Enum):
+    """The period over which the customer charge applies."""
+
+    DAILY = "daily"
+    MONTHLY = "monthly"
+
+
 @dataclass(frozen=True, slots=True)
 class ApplicabilityRule:
     """
@@ -111,18 +118,19 @@ class DemandCharge:
 @dataclass(frozen=True, slots=True)
 class CustomerCharge:
     """
-    Flat recurring charge (e.g., monthly customer charge).
+    Flat recurring charge (e.g., daily or monthly customer charge).
 
-    This is typically a fixed amount per billing period, not time-windowed.
+    This is a fixed amount per billing period (day or month), not time-windowed.
     """
 
     name: str
-    amount_usd_per_month: Decimal
+    amount_usd: Decimal
+    type: CustomerChargeType = CustomerChargeType.MONTHLY
     charge_id: ChargeId = field(default_factory=ChargeId)
 
 
 @dataclass(frozen=True, slots=True)
-class ChargeList:
+class Tariff:
     """
     Container for tariff charges, grouped by charge type.
     """
@@ -151,6 +159,25 @@ class MonthlyBillResult:
 
     month_start: date
     month_end: date
+    energy_line_items: tuple[BillLineItem, ...]
+    demand_line_items: tuple[BillLineItem, ...]
+    customer_line_items: tuple[BillLineItem, ...]
+    total_usd: Decimal
+
+
+@dataclass(frozen=True, slots=True)
+class BillingMonthResult:
+    """
+    Billing result for a custom billing month.
+
+    A billing month may span multiple calendar months. When it does,
+    monthly_breakdowns contains one MonthlyBillResult per calendar month portion.
+    The aggregated line items apply day-based weighting for customer/demand charges.
+    """
+
+    period_start: date
+    period_end: date
+    monthly_breakdowns: tuple[MonthlyBillResult, ...]
     energy_line_items: tuple[BillLineItem, ...]
     demand_line_items: tuple[BillLineItem, ...]
     customer_line_items: tuple[BillLineItem, ...]

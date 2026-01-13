@@ -97,7 +97,8 @@ class TariffYAMLExporter:
         """Convert customer charge instance to dictionary."""
         return {
             "name": charge.name,
-            "usd_per_month": charge.usd_per_month,
+            "amount_usd": charge.amount_usd,
+            "charge_type": charge.charge_type,
         }
 
     def _normalize_date_to_year_2000(self, d: datetime.date | None) -> str | None:
@@ -321,7 +322,8 @@ class TariffYAMLImporter:
         charge = CustomerCharge(
             tariff=tariff,
             name=charge_data["name"],
-            usd_per_month=Decimal(str(charge_data["usd_per_month"])),
+            amount_usd=Decimal(str(charge_data["amount_usd"])),
+            charge_type=charge_data.get("charge_type", "monthly"),
         )
         # Validate using model's clean() method
         charge.full_clean()

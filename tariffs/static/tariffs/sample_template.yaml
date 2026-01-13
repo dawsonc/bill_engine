@@ -54,13 +54,14 @@ tariffs:
         applies_weekends: false
         applies_holidays: false
 
-    # Customer charges (fixed monthly fees)
+    # Customer charges (fixed fees, daily or monthly)
     customer_charges:
       - name: "Basic Service"
-        usd_per_month: 15.00
+        amount_usd: 15.00
+        charge_type: "monthly"  # "daily" or "monthly" (defaults to monthly)
 
       - name: "Meter Charge"
-        usd_per_month: 5.00
+        amount_usd: 5.00
 
   # Second tariff example with minimal charges
   - name: "E-19 Secondary"
@@ -82,4 +83,4 @@ tariffs:
 
     customer_charges:
       - name: "Customer Charge"
-        usd_per_month: 20.00
+        amount_usd: 20.00

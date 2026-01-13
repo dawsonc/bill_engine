@@ -32,7 +32,8 @@ def apply_demand_charge(
 
     # Get the groupings over which we will compute the max
     if demand_charge.type == PeakType.MONTHLY:
-        usage["_peak_grouping"] = usage["interval_start"].dt.month
+        # Monthly refers to billing period rather than calendar month
+        usage["_peak_grouping"] = usage["billing_period"]
     elif demand_charge.type == PeakType.DAILY:
         usage["_peak_grouping"] = usage["interval_start"].dt.date
     else:
