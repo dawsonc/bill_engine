@@ -78,12 +78,13 @@ class TariffYAMLExporterTests(TestCase):
         self.assertIn("period_end_time_local: '18:00'", yaml_str)
 
     def test_export_date_format(self):
-        """Test that dates are exported in YYYY-MM-DD format."""
+        """Test that dates are exported in YYYY-MM-DD format with year 2000."""
         exporter = TariffYAMLExporter(Tariff.objects.all())
         yaml_str = exporter.export_to_yaml()
 
-        self.assertIn("applies_start_date: '2024-06-01'", yaml_str)
-        self.assertIn("applies_end_date: '2024-09-30'", yaml_str)
+        # Dates are normalized to year 2000 (only month/day matter)
+        self.assertIn("applies_start_date: '2000-06-01'", yaml_str)
+        self.assertIn("applies_end_date: '2000-09-30'", yaml_str)
 
     def test_export_preserves_decimal_precision(self):
         """Test that decimal values preserve correct precision."""
@@ -389,5 +390,6 @@ class TariffYAMLRoundtripTests(TestCase):
         self.assertEqual(energy.name, "Summer Peak")
         self.assertEqual(energy.rate_usd_per_kwh, Decimal("0.15432"))
         self.assertEqual(energy.period_start_time_local, datetime.time(12, 0))
-        self.assertEqual(energy.applies_start_date, datetime.date(2024, 6, 1))
+        # Dates are normalized to year 2000 (only month/day matter)
+        self.assertEqual(energy.applies_start_date, datetime.date(2000, 6, 1))
         self.assertFalse(energy.applies_weekends)

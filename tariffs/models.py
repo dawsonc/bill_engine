@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -79,8 +81,13 @@ class EnergyCharge(models.Model):
             )
 
         # Validate date range (only if both dates are provided)
+        # Compare only month/day by normalizing to year 2000
         if self.applies_start_date and self.applies_end_date:
-            if self.applies_end_date < self.applies_start_date:
+            start_normalized = date(
+                2000, self.applies_start_date.month, self.applies_start_date.day
+            )
+            end_normalized = date(2000, self.applies_end_date.month, self.applies_end_date.day)
+            if end_normalized < start_normalized:
                 raise ValidationError(
                     {"applies_end_date": "Applicable end date must be on or after the start date."}
                 )
@@ -114,7 +121,7 @@ class DemandCharge(models.Model):
     )
     rate_usd_per_kw = models.DecimalField(
         max_digits=10,
-        decimal_places=2,
+        decimal_places=5,
         help_text="Rate in $/kW",
     )
     period_start_time_local = models.TimeField(
@@ -158,8 +165,13 @@ class DemandCharge(models.Model):
             )
 
         # Validate date range (only if both dates are provided)
+        # Compare only month/day by normalizing to year 2000
         if self.applies_start_date and self.applies_end_date:
-            if self.applies_end_date < self.applies_start_date:
+            start_normalized = date(
+                2000, self.applies_start_date.month, self.applies_start_date.day
+            )
+            end_normalized = date(2000, self.applies_end_date.month, self.applies_end_date.day)
+            if end_normalized < start_normalized:
                 raise ValidationError(
                     {"applies_end_date": "Applicable end date must be on or after the start date."}
                 )
@@ -185,7 +197,7 @@ class CustomerCharge(models.Model):
     name = models.CharField(max_length=200, help_text="Name of the charge (e.g., Customer Charge)")
     usd_per_month = models.DecimalField(
         max_digits=10,
-        decimal_places=2,
+        decimal_places=5,
         help_text="Fixed charge in $/month",
     )
 

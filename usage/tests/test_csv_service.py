@@ -361,3 +361,105 @@ class UsageCSVImporterTests(TestCase):
             # 77°F = 25°C
             usage = CustomerUsage.objects.get(customer=self.customer)
             self.assertEqual(float(usage.temperature_c), 25.0, f"Failed for unit: {unit}")
+
+    def test_us_date_format(self):
+        """Test importing with US date format MM/DD/YYYY."""
+        csv_content = """interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+01/15/2024 14:30:00,01/15/2024 14:35:00,5.25,kWh,63.0,kW,22.5,C"""
+
+        importer = UsageCSVImporter(csv_content, customer=self.customer)
+        results = importer.import_usage()
+
+        self.assertEqual(len(results["created"]), 1)
+        self.assertEqual(len(results["errors"]), 0)
+
+        # Verify timestamp is correct (LA time to UTC)
+        usage = CustomerUsage.objects.get(customer=self.customer)
+        self.assertEqual(
+            usage.interval_start_utc,
+            datetime.datetime(2024, 1, 15, 22, 30, 0, tzinfo=datetime.timezone.utc),
+        )
+
+    def test_us_date_format_with_am_pm(self):
+        """Test importing with US date format and AM/PM time."""
+        csv_content = """interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+01/15/2024 2:30:00 PM,01/15/2024 2:35:00 PM,5.25,kWh,63.0,kW,22.5,C"""
+
+        importer = UsageCSVImporter(csv_content, customer=self.customer)
+        results = importer.import_usage()
+
+        self.assertEqual(len(results["created"]), 1)
+        self.assertEqual(len(results["errors"]), 0)
+
+        # 2:30 PM = 14:30, LA time to UTC = +8 hours in winter
+        usage = CustomerUsage.objects.get(customer=self.customer)
+        self.assertEqual(
+            usage.interval_start_utc,
+            datetime.datetime(2024, 1, 15, 22, 30, 0, tzinfo=datetime.timezone.utc),
+        )
+
+    def test_date_without_zero_padding(self):
+        """Test importing with dates without zero padding."""
+        csv_content = """interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+1/15/2024 14:30:00,1/15/2024 14:35:00,5.25,kWh,63.0,kW,22.5,C"""
+
+        importer = UsageCSVImporter(csv_content, customer=self.customer)
+        results = importer.import_usage()
+
+        self.assertEqual(len(results["created"]), 1)
+        self.assertEqual(len(results["errors"]), 0)
+
+    def test_month_name_format(self):
+        """Test importing with month name format."""
+        # Using "15 Jan 2024" instead of "Jan 15, 2024" to avoid comma in CSV field
+        csv_content = """interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+15 Jan 2024 14:30:00,15 Jan 2024 14:35:00,5.25,kWh,63.0,kW,22.5,C"""
+
+        importer = UsageCSVImporter(csv_content, customer=self.customer)
+        results = importer.import_usage()
+
+        self.assertEqual(len(results["created"]), 1)
+        self.assertEqual(len(results["errors"]), 0)
+
+        # Verify timestamp is correct
+        usage = CustomerUsage.objects.get(customer=self.customer)
+        self.assertEqual(
+            usage.interval_start_utc,
+            datetime.datetime(2024, 1, 15, 22, 30, 0, tzinfo=datetime.timezone.utc),
+        )
+
+    def test_slash_separator_yyyy_mm_dd(self):
+        """Test importing with slash separator YYYY/MM/DD."""
+        csv_content = """interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+2024/01/15 14:30:00,2024/01/15 14:35:00,5.25,kWh,63.0,kW,22.5,C"""
+
+        importer = UsageCSVImporter(csv_content, customer=self.customer)
+        results = importer.import_usage()
+
+        self.assertEqual(len(results["created"]), 1)
+        self.assertEqual(len(results["errors"]), 0)
+
+    def test_various_datetime_formats(self):
+        """Test that various datetime formats are all parsed correctly."""
+        # Note: Formats containing commas would need to be quoted in real CSV files
+        formats = [
+            "2024-01-15 14:30:00",      # Standard
+            "2024-01-15T14:30:00",      # ISO 8601
+            "01/15/2024 14:30:00",      # US format
+            "1/15/2024 2:30:00 PM",     # US with AM/PM
+            "15 Jan 2024 14:30:00",     # Month name (no comma)
+            "15-Jan-2024 14:30:00",     # Day-Month-Year
+            "2024/01/15 14:30:00",      # Slash separator
+        ]
+
+        for fmt in formats:
+            CustomerUsage.objects.all().delete()  # Clear for each test
+
+            csv_content = f"""interval_start,interval_end,usage,usage_unit,peak_demand,peak_demand_unit,temperature,temperature_unit
+{fmt},{fmt.replace("30", "35")},5.25,kWh,63.0,kW,22.5,C"""
+
+            importer = UsageCSVImporter(csv_content, customer=self.customer)
+            results = importer.import_usage()
+
+            self.assertEqual(len(results["created"]), 1, f"Failed for format: {fmt}")
+            self.assertEqual(len(results["errors"]), 0, f"Failed for format: {fmt}")

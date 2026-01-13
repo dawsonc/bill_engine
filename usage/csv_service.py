@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Optional
 
+from dateutil import parser as dateutil_parser
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
@@ -246,6 +248,12 @@ class UsageCSVImporter:
         """
         Parse timestamp, auto-detect if naive or aware, convert to UTC.
 
+        Supports a wide variety of formats via python-dateutil including:
+        - ISO 8601: 2024-01-15T14:30:00, 2024-01-15T14:30:00+00:00
+        - Common formats: 2024-01-15 14:30:00, 01/15/2024 14:30:00
+        - US format: 1/15/2024 2:30:00 PM
+        - And many more via dateutil.parser
+
         Args:
             timestamp_str: Timestamp string to parse
             customer_timezone: Customer's timezone for localizing naive timestamps
@@ -257,25 +265,16 @@ class UsageCSVImporter:
             ValueError: If timestamp cannot be parsed
         """
         try:
-            # Try parsing with fromisoformat (handles most formats)
+            # Try fromisoformat first (fast path for ISO 8601)
             dt = datetime.fromisoformat(timestamp_str)
         except ValueError:
-            # Try parsing with common formats
-            for fmt in [
-                "%Y-%m-%d %H:%M:%S",
-                "%Y-%m-%d %H:%M:%S.%f",
-                "%Y-%m-%dT%H:%M:%S",
-                "%Y-%m-%dT%H:%M:%S.%f",
-            ]:
-                try:
-                    dt = datetime.strptime(timestamp_str, fmt)
-                    break
-                except ValueError:
-                    continue
-            else:
+            try:
+                # Use dateutil for flexible parsing
+                dt = dateutil_parser.parse(timestamp_str)
+            except (ValueError, dateutil_parser.ParserError):
                 raise ValueError(
                     f"Unable to parse timestamp '{timestamp_str}'. "
-                    f"Expected formats: YYYY-MM-DD HH:MM:SS or ISO 8601"
+                    f"Please use a standard format like YYYY-MM-DD HH:MM:SS or MM/DD/YYYY HH:MM:SS"
                 )
 
         # Check if naive or aware

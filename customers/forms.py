@@ -2,7 +2,10 @@
 Forms for customer management.
 """
 
+import zoneinfo
+
 from django import forms
+from django.utils import timezone
 
 
 class CustomerCSVUploadForm(forms.Form):
@@ -39,3 +42,53 @@ class CustomerCSVUploadForm(forms.Form):
             )
 
         return csv_file
+
+
+class UsageChartDateRangeForm(forms.Form):
+    """Form for filtering usage chart by date range."""
+
+    start_date = forms.DateField(
+        label="Start Date",
+        widget=forms.DateInput(
+            attrs={"type": "date", "class": "vDateField"}  # Django admin CSS
+        ),
+        help_text="Start of date range (inclusive)",
+    )
+
+    end_date = forms.DateField(
+        label="End Date",
+        widget=forms.DateInput(attrs={"type": "date", "class": "vDateField"}),
+        help_text="End of date range (inclusive)",
+    )
+
+    def __init__(self, *args, customer=None, **kwargs):
+        """Initialize form with customer for timezone validation."""
+        super().__init__(*args, **kwargs)
+        self.customer = customer
+        if customer:
+            self.customer_tz = zoneinfo.ZoneInfo(str(customer.timezone))
+
+    def clean(self):
+        """Validate date range."""
+        cleaned_data = super().clean()
+        start = cleaned_data.get("start_date")
+        end = cleaned_data.get("end_date")
+
+        if start and end:
+            # Validate start before end
+            if start > end:
+                raise forms.ValidationError(
+                    "Start date must be before or equal to end date."
+                )
+
+            # Validate not too far in future
+            if self.customer:
+                today_utc = timezone.now()
+                today_local = today_utc.astimezone(self.customer_tz).date()
+
+                if start > today_local:
+                    raise forms.ValidationError("Start date cannot be in the future.")
+
+                # Cap end date at today (don't error, just cap in view)
+
+        return cleaned_data

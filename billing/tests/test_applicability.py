@@ -35,17 +35,17 @@ from billing.core.types import ApplicabilityRule, DayType
             True,
             "period_start_local must be strictly earlier",
         ),
-        # Date validations - invalid case
+        # Date validations - invalid case (using year 2000 convention)
         (
             None,
             None,
-            date(2024, 12, 31),
-            date(2024, 1, 1),
+            date(2000, 12, 31),
+            date(2000, 1, 1),
             True,
             "start_date must be earlier",
         ),
         # Date validations - valid case (equal dates allowed)
-        (None, None, date(2024, 6, 15), date(2024, 6, 15), False, None),
+        (None, None, date(2000, 6, 15), date(2000, 6, 15), False, None),
     ],
 )
 def test_applicability_rule_validation(
@@ -197,22 +197,24 @@ def test_no_time_constraints(hourly_day_usage):
 
 
 def test_start_date_only(month_usage):
-    """Filter with only start_date (no end)."""
-    rule = ApplicabilityRule(start_date=date(2024, 1, 15))
+    """Filter with only start_date (no end), using year 2000 convention."""
+    # Rule uses year 2000, but should match usage from any year (month_usage is 2024)
+    rule = ApplicabilityRule(start_date=date(2000, 1, 15))
 
     result = construct_applicability_mask(month_usage, rule)
 
-    # Should match intervals from Jan 15 onwards
+    # Should match intervals from Jan 15 onwards (month/day only)
     matched_dates = month_usage[result]["interval_start"].dt.date.unique()
 
-    assert all(d >= date(2024, 1, 15) for d in matched_dates)
+    assert all(d.month == 1 and d.day >= 15 for d in matched_dates)
     # Should include Jan 15 through Jan 31 (17 days)
     assert result.sum() == 17 * 24
 
 
 def test_end_date_only(month_usage):
-    """Filter with only end_date (no start)."""
-    rule = ApplicabilityRule(end_date=date(2024, 1, 15))
+    """Filter with only end_date (no start), using year 2000 convention."""
+    # Rule uses year 2000, but should match usage from any year (month_usage is 2024)
+    rule = ApplicabilityRule(end_date=date(2000, 1, 15))
 
     result = construct_applicability_mask(month_usage, rule)
 
@@ -220,20 +222,21 @@ def test_end_date_only(month_usage):
     matched_dates = month_usage[result]["interval_start"].dt.date.unique()
 
     # Should include Jan 1 through Jan 15 (15 days)
-    assert all(d <= date(2024, 1, 15) for d in matched_dates)
+    assert all(d.month == 1 and d.day <= 15 for d in matched_dates)
     assert result.sum() == 15 * 24
 
 
 def test_start_and_end_date(month_usage):
-    """Filter with both start and end dates."""
-    rule = ApplicabilityRule(start_date=date(2024, 1, 10), end_date=date(2024, 1, 20))
+    """Filter with both start and end dates, using year 2000 convention."""
+    # Rule uses year 2000, but should match usage from any year (month_usage is 2024)
+    rule = ApplicabilityRule(start_date=date(2000, 1, 10), end_date=date(2000, 1, 20))
 
     result = construct_applicability_mask(month_usage, rule)
 
     # Should match Jan 10-20 (11 days)
     matched_dates = month_usage[result]["interval_start"].dt.date.unique()
 
-    assert all(date(2024, 1, 10) <= d <= date(2024, 1, 20) for d in matched_dates)
+    assert all(d.month == 1 and 10 <= d.day <= 20 for d in matched_dates)
     assert result.sum() == 11 * 24
 
 
@@ -248,8 +251,9 @@ def test_start_and_end_date(month_usage):
     ],
 )
 def test_date_boundary_filtering(month_usage, test_date, should_match):
-    """Test date filtering boundary conditions (inclusive start, exclusive end)."""
-    rule = ApplicabilityRule(start_date=date(2024, 1, 10), end_date=date(2024, 1, 15))
+    """Test date filtering boundary conditions (inclusive start, inclusive end)."""
+    # Rule uses year 2000, but should match usage from 2024 (month_usage fixture)
+    rule = ApplicabilityRule(start_date=date(2000, 1, 10), end_date=date(2000, 1, 15))
     result = construct_applicability_mask(month_usage, rule)
 
     test_intervals = month_usage[month_usage["interval_start"].dt.date == test_date]
@@ -269,32 +273,51 @@ def test_no_date_constraints(month_usage):
 
 def test_single_day_rule(month_usage):
     """start_date == end_date should match just one day (inclusive end)."""
-    rule = ApplicabilityRule(start_date=date(2024, 1, 15), end_date=date(2024, 1, 15))
+    # Rule uses year 2000, but should match usage from 2024
+    rule = ApplicabilityRule(start_date=date(2000, 1, 15), end_date=date(2000, 1, 15))
 
     result = construct_applicability_mask(month_usage, rule)
 
-    # One day should match (date >= 2024-01-15 AND date <= 2024-01-15)
+    # One day should match (Jan 15 regardless of year)
     # since both start and end dates are inclusive.
     matched_dates = month_usage[result]["interval_start"].dt.date.unique()
-    assert all(date(2024, 1, 15) <= d <= date(2024, 1, 15) for d in matched_dates)
+    assert all(d.month == 1 and d.day == 15 for d in matched_dates)
     assert result.sum() == 1 * 24
 
 
 def test_multi_month_date_range(usage_df_factory):
-    """Date range spanning multiple months."""
+    """Date range spanning multiple months, using year 2000 convention."""
     # Create data spanning Dec 2023 - Feb 2024
     usage = usage_df_factory(start="2023-12-15 00:00:00", periods=60 * 24, freq="1h")
 
-    rule = ApplicabilityRule(start_date=date(2024, 1, 1), end_date=date(2024, 1, 31))
+    # Rule uses year 2000 for month/day only comparison
+    rule = ApplicabilityRule(start_date=date(2000, 1, 1), end_date=date(2000, 1, 31))
 
     result = construct_applicability_mask(usage, rule)
 
-    # Should match all of January 2024 only
+    # Should match all January dates from both 2023 and 2024 data
     matched_dates = usage[result]["interval_start"].dt.date.unique()
 
-    assert all(date(2024, 1, 1) <= d <= date(2024, 1, 31) for d in matched_dates)
-    # Should be 31 days in January
+    assert all(d.month == 1 and 1 <= d.day <= 31 for d in matched_dates)
+    # Should be 31 days in January (all from 2024 since Dec 2023 doesn't have Jan)
     assert result.sum() == 31 * 24
+
+
+def test_date_matches_across_years(usage_df_factory):
+    """Dates with year 2000 should match usage from any year."""
+    # Create data from 2025
+    usage_2025 = usage_df_factory(start="2025-06-01 00:00:00", periods=30 * 24, freq="1h")
+
+    # Rule uses year 2000 - should still match June 2025 data
+    rule = ApplicabilityRule(start_date=date(2000, 6, 1), end_date=date(2000, 6, 30))
+
+    result = construct_applicability_mask(usage_2025, rule)
+
+    # All 30 days of June should match, regardless of year
+    matched_dates = usage_2025[result]["interval_start"].dt.date.unique()
+    assert len(matched_dates) == 30
+    assert all(d.month == 6 for d in matched_dates)
+    assert result.sum() == 30 * 24
 
 
 # Combined Filtering Tests
@@ -324,16 +347,17 @@ def test_weekday_peak_hours(full_week_usage):
 
 
 def test_summer_weekday_afternoon(usage_df_factory):
-    """Date range + day type + time."""
+    """Date range + day type + time, using year 2000 convention."""
     # Create data spanning May-September 2024
     usage = usage_df_factory(start="2024-05-01 00:00:00", periods=150 * 24, freq="1h")
 
+    # Rule uses year 2000 for month/day only comparison
     rule = ApplicabilityRule(
         day_types=frozenset([DayType.WEEKDAY]),
         period_start_local=time(12, 0),
         period_end_local=time(18, 0),
-        start_date=date(2024, 6, 1),
-        end_date=date(2024, 9, 1),  # FIX TODO
+        start_date=date(2000, 6, 1),
+        end_date=date(2000, 9, 1),
     )
 
     result = construct_applicability_mask(usage, rule)
@@ -345,9 +369,9 @@ def test_summer_weekday_afternoon(usage_df_factory):
     # All matched intervals should be in time range [12, 18)
     matched_hours = matched_data["interval_start"].dt.hour
     assert all((12 <= h < 18) for h in matched_hours)
-    # All matched dates should be in June-August
+    # All matched dates should be in June-September (month/day only)
     matched_dates = matched_data["interval_start"].dt.date
-    assert all(date(2024, 6, 1) <= d <= date(2024, 9, 1) for d in matched_dates)
+    assert all(6 <= d.month <= 9 or (d.month == 9 and d.day == 1) for d in matched_dates)
 
 
 def test_all_constraints_none_applies_everywhere(full_week_usage):
@@ -362,16 +386,17 @@ def test_all_constraints_none_applies_everywhere(full_week_usage):
 
 
 def test_restrictive_combined_filters(full_week_usage):
-    """Very restrictive combination."""
+    """Very restrictive combination, using year 2000 convention."""
     # Mark Tuesday as a holiday
     full_week_usage.loc[full_week_usage["interval_start"].dt.dayofweek == 1, "is_holiday"] = True
 
+    # Rule uses year 2000 for month/day only comparison
     rule = ApplicabilityRule(
         day_types=frozenset([DayType.HOLIDAY]),
         period_start_local=time(14, 0),
         period_end_local=time(15, 0),
-        start_date=date(2024, 1, 2),
-        end_date=date(2024, 1, 3),
+        start_date=date(2000, 1, 2),
+        end_date=date(2000, 1, 3),
     )
 
     result = construct_applicability_mask(full_week_usage, rule)
@@ -384,7 +409,8 @@ def test_restrictive_combined_filters(full_week_usage):
         matched_interval = matched_data.iloc[0]
         assert matched_interval["is_holiday"]
         assert matched_interval["interval_start"].hour == 14
-        assert matched_interval["interval_start"].date() == date(2024, 1, 2)
+        assert matched_interval["interval_start"].month == 1
+        assert matched_interval["interval_start"].day == 2
 
 
 # Edge Case Tests
@@ -402,14 +428,14 @@ def test_restrictive_combined_filters(full_week_usage):
             12,
             "DST transition handles missing hour",
         ),
-        # Leap day test (2024 is leap year)
+        # Leap day test (2024 is leap year) - using year 2000 convention
         (
             "2024-02-28 00:00:00",
             72,
             "1h",
-            {"start_date": date(2024, 2, 28), "end_date": date(2024, 3, 1)},
+            {"start_date": date(2000, 2, 28), "end_date": date(2000, 3, 1)},
             24 * 3,
-            "Leap day Feb 29 handled correctly",
+            "Leap day Feb 29 handled correctly with year 2000 dates",
         ),
     ],
 )

@@ -1,0 +1,305 @@
+{% extends "admin/change_form.html" %}
+{% load humanize %}
+
+{% block after_field_sets %}
+  {{ block.super }}
+
+  {% if usage_gap_warnings %}
+  <div class="module usage-gap-warnings">
+    <h2>Usage Data Warnings</h2>
+    <div class="warning-message">
+      <strong>Missing usage data detected</strong> - The following months have incomplete usage records:
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Missing Intervals</th>
+          <th>Percentage Missing</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for warning in usage_gap_warnings %}
+        <tr class="{% if not warning.has_data %}no-data{% endif %}">
+          <td>{{ warning.month_label }}</td>
+          <td>{{ warning.missing_intervals|intcomma }} of {{ warning.expected_intervals|intcomma }}</td>
+          <td>{{ warning.missing_percentage|floatformat:1 }}%</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <style>
+    .usage-gap-warnings {
+      margin-top: 20px;
+      background: #fff9e6;
+      border: 2px solid #ba6900;
+      border-radius: 4px;
+      padding: 15px;
+    }
+
+    .usage-gap-warnings h2 {
+      color: #ba6900;
+      margin-top: 0;
+      font-size: 16px;
+    }
+
+    .usage-gap-warnings .warning-message {
+      margin-bottom: 15px;
+      color: #ba6900;
+    }
+
+    .usage-gap-warnings table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .usage-gap-warnings th {
+      text-align: left;
+      background: #f8f8f8;
+      padding: 8px;
+      border-bottom: 2px solid #ddd;
+      font-weight: 600;
+    }
+
+    .usage-gap-warnings td {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .usage-gap-warnings tr.no-data {
+      background: #ffebe8;
+    }
+  </style>
+  {% endif %}
+
+  {# Usage Time Series Chart (only on existing customers) #}
+  {% if chart_data %}
+  <div class="module usage-chart-container">
+    <h2>Usage Time Series</h2>
+
+    {# Date range filter form #}
+    <form method="get" class="usage-chart-filters">
+      <div class="filter-row">
+        <div class="filter-field">
+          <label for="{{ chart_date_form.start_date.id_for_label }}">
+            {{ chart_date_form.start_date.label }}:
+          </label>
+          {{ chart_date_form.start_date }}
+          {% if chart_date_form.start_date.errors %}
+            <span class="error">{{ chart_date_form.start_date.errors }}</span>
+          {% endif %}
+        </div>
+
+        <div class="filter-field">
+          <label for="{{ chart_date_form.end_date.id_for_label }}">
+            {{ chart_date_form.end_date.label }}:
+          </label>
+          {{ chart_date_form.end_date }}
+          {% if chart_date_form.end_date.errors %}
+            <span class="error">{{ chart_date_form.end_date.errors }}</span>
+          {% endif %}
+        </div>
+
+        <button type="submit" class="button">Update Chart</button>
+      </div>
+
+      {% if chart_date_form.non_field_errors %}
+        <div class="error-message">{{ chart_date_form.non_field_errors }}</div>
+      {% endif %}
+    </form>
+
+    {# Chart container #}
+    <div id="usage-timeseries-chart" style="width: 100%; height: 500px;"></div>
+
+    {# No data message #}
+    {% if not chart_data.has_data %}
+      <div class="no-data-message">
+        No usage data available for the selected date range.
+      </div>
+    {% endif %}
+
+    {# Downsampling notice #}
+    {% if chart_data.is_downsampled %}
+      <div class="info-message">
+        Note: Data has been aggregated to hourly intervals for performance ({{ chart_data.point_count|intcomma }} data points displayed).
+      </div>
+    {% endif %}
+  </div>
+
+  {# Plotly.js from CDN #}
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+
+  {# Chart initialization script #}
+  <script>
+    (function() {
+      // Get chart data from Django context (JSON serialized)
+      const chartData = {{ chart_data_json|safe }};
+
+      if (!chartData.has_data) {
+        // No data to display
+        return;
+      }
+
+      // Prepare traces for Plotly
+      const energyTrace = {
+        x: chartData.timestamps,
+        y: chartData.energy_kwh,
+        name: 'Energy (kWh)',
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#1f77b4', width: 2 },
+        yaxis: 'y1'
+      };
+
+      const peakDemandTrace = {
+        x: chartData.timestamps,
+        y: chartData.peak_demand_kw,
+        name: 'Peak Demand (kW)',
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#ff7f0e', width: 2 },
+        yaxis: 'y2'
+      };
+
+      const data = [energyTrace, peakDemandTrace];
+
+      // Layout configuration with dual Y-axes
+      const layout = {
+        title: {
+          text: 'Customer Usage Over Time',
+          font: { size: 16 }
+        },
+        xaxis: {
+          title: 'Time ({{ original.timezone }})',
+          type: 'date',
+          tickformat: '%Y-%m-%d %H:%M'
+        },
+        yaxis: {
+          title: 'Energy (kWh)',
+          titlefont: { color: '#1f77b4' },
+          tickfont: { color: '#1f77b4' },
+          side: 'left'
+        },
+        yaxis2: {
+          title: 'Peak Demand (kW)',
+          titlefont: { color: '#ff7f0e' },
+          tickfont: { color: '#ff7f0e' },
+          overlaying: 'y',
+          side: 'right'
+        },
+        legend: {
+          x: 0,
+          y: 1.1,
+          orientation: 'h'
+        },
+        hovermode: 'x unified',
+        margin: { t: 80, r: 80, b: 80, l: 80 }
+      };
+
+      // Plotly config (built-in interactivity)
+      const config = {
+        responsive: true,
+        displayModeBar: true,
+        modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+        displaylogo: false,
+        toImageButtonOptions: {
+          filename: 'customer_usage_{{ original.id }}_chart',
+          format: 'png',
+          height: 800,
+          width: 1400
+        }
+      };
+
+      // Render chart
+      Plotly.newPlot('usage-timeseries-chart', data, layout, config);
+    })();
+  </script>
+
+  {# Styles #}
+  <style>
+    .usage-chart-container {
+      margin-top: 20px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+    }
+
+    .usage-chart-container h2 {
+      margin-top: 0;
+      font-size: 16px;
+      color: #333;
+    }
+
+    .usage-chart-filters {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f8f8f8;
+      border-radius: 4px;
+    }
+
+    .filter-row {
+      display: flex;
+      gap: 20px;
+      align-items: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .filter-field {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .filter-field label {
+      margin-bottom: 5px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .filter-field input[type="date"] {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .filter-row button {
+      height: 32px;
+      padding: 0 15px;
+    }
+
+    .no-data-message {
+      padding: 40px;
+      text-align: center;
+      color: #666;
+      font-style: italic;
+      font-size: 14px;
+    }
+
+    .info-message {
+      margin-top: 10px;
+      padding: 10px;
+      background: #e7f3fe;
+      border-left: 4px solid #2196F3;
+      color: #0d47a1;
+      font-size: 13px;
+    }
+
+    .error-message {
+      margin-top: 10px;
+      padding: 10px;
+      background: #ffebee;
+      border-left: 4px solid #f44336;
+      color: #c62828;
+    }
+
+    .filter-field .error {
+      color: #c62828;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+  </style>
+  {% endif %}
+{% endblock %}

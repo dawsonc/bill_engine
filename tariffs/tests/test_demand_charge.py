@@ -98,15 +98,16 @@ class DemandChargeModelTests(TestCase):
         self.assertIn("period_end_time_local", cm.exception.message_dict)
 
     def test_applies_end_date_must_be_on_or_after_start_date(self):
-        """Test that applicable end date must be on or after start date."""
+        """Test that applicable end date must be on or after start date (month/day only)."""
+        # Uses year 2000 convention for month/day only comparison
         charge = DemandCharge(
             tariff=self.tariff,
             name="Invalid Date Range",
             rate_usd_per_kw=Decimal("18.50"),
             period_start_time_local=datetime.time(12, 0, 0),
             period_end_time_local=datetime.time(18, 0, 0),
-            applies_start_date=datetime.date(2024, 9, 1),
-            applies_end_date=datetime.date(2024, 6, 1),
+            applies_start_date=datetime.date(2000, 9, 1),
+            applies_end_date=datetime.date(2000, 6, 1),
             peak_type="monthly",
         )
         with self.assertRaises(ValidationError) as cm:
@@ -115,14 +116,15 @@ class DemandChargeModelTests(TestCase):
 
     def test_applies_same_start_and_end_date_allowed(self):
         """Test that same start and end date is allowed (single-day charge)."""
+        # Uses year 2000 convention
         charge = DemandCharge(
             tariff=self.tariff,
             name="Single Day Demand",
             rate_usd_per_kw=Decimal("18.50"),
             period_start_time_local=datetime.time(12, 0, 0),
             period_end_time_local=datetime.time(18, 0, 0),
-            applies_start_date=datetime.date(2024, 7, 4),
-            applies_end_date=datetime.date(2024, 7, 4),
+            applies_start_date=datetime.date(2000, 7, 4),
+            applies_end_date=datetime.date(2000, 7, 4),
             peak_type="monthly",
         )
         charge.full_clean()  # Should not raise
@@ -147,15 +149,15 @@ class DemandChargeModelTests(TestCase):
         self.assertIsNotNone(charge.pk)
 
     def test_valid_charge_with_proper_times_and_dates(self):
-        """Test that valid charges pass validation."""
+        """Test that valid charges pass validation with year 2000 convention."""
         charge = DemandCharge(
             tariff=self.tariff,
             name="Valid Summer Peak",
             rate_usd_per_kw=Decimal("18.50"),
             period_start_time_local=datetime.time(12, 0, 0),
             period_end_time_local=datetime.time(18, 0, 0),
-            applies_start_date=datetime.date(2024, 6, 1),
-            applies_end_date=datetime.date(2024, 9, 30),
+            applies_start_date=datetime.date(2000, 6, 1),
+            applies_end_date=datetime.date(2000, 9, 30),
             peak_type="monthly",
         )
         charge.full_clean()  # Should not raise

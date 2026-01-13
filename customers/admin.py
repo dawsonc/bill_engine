@@ -22,6 +22,7 @@ class CustomerAdmin(admin.ModelAdmin):
     search_fields = ["name"]
     readonly_fields = ["created_at", "updated_at"]
     change_list_template = "admin/customers/customer_changelist.html"
+    change_form_template = "admin/customers/customer_change_form.html"
     actions = ["export_selected_customers_to_csv"]
 
     def get_utility(self, obj):
@@ -99,3 +100,87 @@ class CustomerAdmin(admin.ModelAdmin):
         response = HttpResponse(csv_str, content_type="text/csv")
         response["Content-Disposition"] = 'attachment; filename="customers_selected.csv"'
         return response
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        """Override to add usage gap warnings and usage chart to context."""
+        extra_context = extra_context or {}
+
+        # Only add data when viewing existing customer (not add form)
+        if object_id:
+            try:
+                customer = self.get_object(request, object_id)
+                if customer:
+                    # Existing gap warnings code
+                    from customers.usage_analytics import analyze_usage_gaps
+
+                    gap_warnings = analyze_usage_gaps(customer, months=12)
+                    extra_context["usage_gap_warnings"] = gap_warnings
+
+                    # NEW: Usage chart data
+                    from customers.forms import UsageChartDateRangeForm
+                    from customers.usage_chart_data import (
+                        get_default_date_range,
+                        get_usage_timeseries_data,
+                    )
+                    import json
+
+                    # Parse date range from GET parameters or use defaults
+                    chart_form = UsageChartDateRangeForm(
+                        data=request.GET if request.GET else None, customer=customer
+                    )
+
+                    if chart_form.is_valid():
+                        start_date = chart_form.cleaned_data["start_date"]
+                        end_date = chart_form.cleaned_data["end_date"]
+                    else:
+                        # Use defaults (last 30 days)
+                        start_date, end_date = get_default_date_range(customer)
+
+                        # Reinitialize form with defaults for display
+                        chart_form = UsageChartDateRangeForm(
+                            initial={"start_date": start_date, "end_date": end_date},
+                            customer=customer,
+                        )
+
+                    # Get chart data
+                    chart_data = get_usage_timeseries_data(
+                        customer, start_date, end_date
+                    )
+
+                    # Serialize to JSON for JavaScript
+                    chart_data_json = json.dumps(chart_data)
+
+                    # Add to context
+                    extra_context["chart_date_form"] = chart_form
+                    extra_context["chart_data"] = chart_data
+                    extra_context["chart_data_json"] = chart_data_json
+
+            except Exception as e:
+                # Log error but don't break admin page
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.exception(
+                    f"Error preparing data for customer {object_id}: {e}"
+                )
+
+                # Set empty chart data so template doesn't break
+                from customers.forms import UsageChartDateRangeForm
+                import json
+
+                extra_context["usage_gap_warnings"] = []
+                extra_context["chart_date_form"] = UsageChartDateRangeForm(
+                    customer=customer if "customer" in locals() else None
+                )
+                extra_context["chart_data"] = {
+                    "has_data": False,
+                    "timestamps": [],
+                    "energy_kwh": [],
+                    "peak_demand_kw": [],
+                    "point_count": 0,
+                }
+                extra_context["chart_data_json"] = json.dumps(
+                    extra_context["chart_data"]
+                )
+
+        return super().changeform_view(request, object_id, form_url, extra_context)

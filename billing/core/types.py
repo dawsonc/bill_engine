@@ -40,6 +40,8 @@ class ApplicabilityRule:
     Time ranges are inclusive of start and exclusive of end.
     Date ranges are inclusive of both start and end.
 
+    Date ranges are applied to every year; only the month and day matter.
+
     Notes:
         - If a field is None/empty, it is treated as 'no constraint' for that dimension.
         - period_start_local/period_end_local are interpreted as local clock times.
@@ -67,7 +69,10 @@ class ApplicabilityRule:
                 )
 
         if self.start_date is not None and self.end_date is not None:
-            if self.start_date > self.end_date:
+            # Normalize to year 2000 for month/day-only comparison
+            start_normalized = date(2000, self.start_date.month, self.start_date.day)
+            end_normalized = date(2000, self.end_date.month, self.end_date.day)
+            if start_normalized > end_normalized:
                 raise ValueError("start_date must be earlier than or equal to end_date")
 
 

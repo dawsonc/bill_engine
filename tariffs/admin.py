@@ -1,15 +1,55 @@
+from django import forms
 from django.contrib import admin
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import path
 
-from .forms import TariffYAMLUploadForm
+from .forms import MonthDayField, TariffYAMLUploadForm
 from .models import CustomerCharge, DemandCharge, EnergyCharge, Tariff
 from .yaml_service import TariffYAMLExporter, TariffYAMLImporter
 
 
+class EnergyChargeForm(forms.ModelForm):
+    """Form for EnergyCharge with month/day widgets for date fields."""
+
+    applies_start_date = MonthDayField(
+        required=False,
+        label="Applies Start (Month/Day)",
+        help_text="First date of the year this charge applies (inclusive). Leave blank for year-round.",
+    )
+    applies_end_date = MonthDayField(
+        required=False,
+        label="Applies End (Month/Day)",
+        help_text="Last date of the year this charge applies (inclusive). Leave blank for year-round.",
+    )
+
+    class Meta:
+        model = EnergyCharge
+        fields = "__all__"
+
+
+class DemandChargeForm(forms.ModelForm):
+    """Form for DemandCharge with month/day widgets for date fields."""
+
+    applies_start_date = MonthDayField(
+        required=False,
+        label="Applies Start (Month/Day)",
+        help_text="First date this charge applies (inclusive). Leave blank for year-round.",
+    )
+    applies_end_date = MonthDayField(
+        required=False,
+        label="Applies End (Month/Day)",
+        help_text="Last date this charge applies (inclusive). Leave blank for year-round.",
+    )
+
+    class Meta:
+        model = DemandCharge
+        fields = "__all__"
+
+
 class EnergyChargeInline(admin.TabularInline):
     model = EnergyCharge
+    form = EnergyChargeForm
     extra = 1
     fields = [
         "name",
@@ -26,6 +66,7 @@ class EnergyChargeInline(admin.TabularInline):
 
 class DemandChargeInline(admin.TabularInline):
     model = DemandCharge
+    form = DemandChargeForm
     extra = 1
     fields = [
         "name",
@@ -137,6 +178,7 @@ class TariffAdmin(admin.ModelAdmin):
 
 @admin.register(EnergyCharge)
 class EnergyChargeAdmin(admin.ModelAdmin):
+    form = EnergyChargeForm
     list_display = [
         "name",
         "tariff",
@@ -152,6 +194,7 @@ class EnergyChargeAdmin(admin.ModelAdmin):
 
 @admin.register(DemandCharge)
 class DemandChargeAdmin(admin.ModelAdmin):
+    form = DemandChargeForm
     list_display = [
         "name",
         "tariff",

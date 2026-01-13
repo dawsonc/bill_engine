@@ -71,12 +71,8 @@ class TariffYAMLExporter:
             "rate_usd_per_kwh": charge.rate_usd_per_kwh,
             "period_start_time_local": charge.period_start_time_local.strftime("%H:%M"),
             "period_end_time_local": charge.period_end_time_local.strftime("%H:%M"),
-            "applies_start_date": charge.applies_start_date.isoformat()
-            if charge.applies_start_date
-            else None,
-            "applies_end_date": charge.applies_end_date.isoformat()
-            if charge.applies_end_date
-            else None,
+            "applies_start_date": self._normalize_date_to_year_2000(charge.applies_start_date),
+            "applies_end_date": self._normalize_date_to_year_2000(charge.applies_end_date),
             "applies_weekdays": charge.applies_weekdays,
             "applies_weekends": charge.applies_weekends,
             "applies_holidays": charge.applies_holidays,
@@ -90,12 +86,8 @@ class TariffYAMLExporter:
             "period_start_time_local": charge.period_start_time_local.strftime("%H:%M"),
             "period_end_time_local": charge.period_end_time_local.strftime("%H:%M"),
             "peak_type": charge.peak_type,
-            "applies_start_date": charge.applies_start_date.isoformat()
-            if charge.applies_start_date
-            else None,
-            "applies_end_date": charge.applies_end_date.isoformat()
-            if charge.applies_end_date
-            else None,
+            "applies_start_date": self._normalize_date_to_year_2000(charge.applies_start_date),
+            "applies_end_date": self._normalize_date_to_year_2000(charge.applies_end_date),
             "applies_weekdays": charge.applies_weekdays,
             "applies_weekends": charge.applies_weekends,
             "applies_holidays": charge.applies_holidays,
@@ -107,6 +99,12 @@ class TariffYAMLExporter:
             "name": charge.name,
             "usd_per_month": charge.usd_per_month,
         }
+
+    def _normalize_date_to_year_2000(self, d: datetime.date | None) -> str | None:
+        """Normalize date to year 2000 for export (only month/day matter)."""
+        if d is None:
+            return None
+        return datetime.date(2000, d.month, d.day).isoformat()
 
 
 class TariffYAMLImporter:
@@ -347,11 +345,13 @@ class TariffYAMLImporter:
             raise ValueError(f"Invalid time format: '{time_str}'. Expected HH:MM or HH:MM:SS")
 
     def _parse_date(self, date_str: Any) -> datetime.date | None:
-        """Parse date string in YYYY-MM-DD format or return None."""
+        """Parse date string in YYYY-MM-DD format and normalize to year 2000."""
         if date_str is None or date_str == "":
             return None
 
         try:
-            return datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            parsed = datetime.datetime.strptime(date_str, "%Y-%m-%d").date()
+            # Normalize to year 2000 (only month/day matter)
+            return datetime.date(2000, parsed.month, parsed.day)
         except (ValueError, TypeError):
             raise ValueError(f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD or null")

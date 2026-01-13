@@ -6,6 +6,7 @@
 # Field Requirements:
 # - Times: HH:MM format (e.g., "12:00" for noon)
 # - Dates: YYYY-MM-DD format or null for year-round charges
+#          Exact year is ignored; date ranges apply to all years
 # - Decimals: Energy rates have up to 5 decimal places, others have 2
 # - Booleans: true/false for applies_* fields (defaults to true if omitted)
 #
