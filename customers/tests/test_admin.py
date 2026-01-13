@@ -92,7 +92,7 @@ class CustomerAdminWarningsTests(TestCase):
         self.client.login(username="admin", password="admin123")
 
         # Mock analyze_usage_gaps to raise exception
-        with patch("customers.usage_analytics.analyze_usage_gaps") as mock_analyze:
+        with patch("customers.admin.analyze_usage_gaps") as mock_analyze:
             mock_analyze.side_effect = Exception("Test error")
 
             # Navigate to customer change form
@@ -172,7 +172,7 @@ class CustomerAdminWarningsTests(TestCase):
         ]
 
         # Mock analyze_usage_gaps to return our mock warnings
-        with patch("customers.usage_analytics.analyze_usage_gaps") as mock_analyze:
+        with patch("customers.admin.analyze_usage_gaps") as mock_analyze:
             mock_analyze.return_value = mock_warnings
 
             # Navigate to customer change form
