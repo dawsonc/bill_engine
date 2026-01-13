@@ -349,6 +349,10 @@ def calculate_monthly_bills(
     if billing_periods is None:
         billing_periods = _derive_calendar_months(usage)
 
+    # Handle empty billing_periods
+    if not billing_periods:
+        return [], apply_charges(usage, charges)
+
     # Trim the data down to just the billing periods
     billing_start_date = min(period[0] for period in billing_periods)
     billing_end_date = max(period[1] for period in billing_periods)

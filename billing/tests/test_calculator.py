@@ -382,8 +382,8 @@ def test_calculate_monthly_bills_returns_billing_df(hourly_day_usage, simple_ene
 
     _, billing_df = calculate_monthly_bills(hourly_day_usage, charges)
 
-    # Should have 8 columns (7 usage + 1 charge)
-    assert len(billing_df.columns) == 8
+    # Should have 9 columns (8 usage + 1 charge)
+    assert len(billing_df.columns) == 9
 
     # Should match apply_charges output
     expected_df = apply_charges(hourly_day_usage, charges)
