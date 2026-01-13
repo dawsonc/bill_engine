@@ -485,3 +485,274 @@ def test_single_interval_dataset(usage_df_factory, monthly_demand_charge):
     expected_charge = monthly_demand_charge.rate_usd_per_kw * Decimal("48")
     assert result.iloc[0] == expected_charge
     assert len(result) == 1
+
+
+# --- Non-Calendar Billing Period Tests ---
+
+
+def test_monthly_peak_non_calendar_single_period(usage_df_factory, monthly_demand_charge):
+    """Monthly peak should be identified within a non-calendar billing period."""
+    # Non-calendar billing period: Jan 15 - Feb 14
+    billing_periods = [(date(2024, 1, 15), date(2024, 2, 14))]
+
+    # Create usage with peak at Jan 20 (50 kW)
+    kw_values = [35] * (31 * 24)  # Base demand
+    peak_index = 5 * 24 + 12  # Jan 20, hour 12 (5 days after Jan 15)
+    kw_values[peak_index] = 50
+
+    usage = usage_df_factory(
+        start="2024-01-15 00:00:00",
+        periods=31 * 24,
+        freq="1h",
+        kw=kw_values,
+        billing_periods=billing_periods,
+    )
+
+    result = apply_demand_charge(usage, monthly_demand_charge)
+
+    # Peak interval should get the full charge
+    expected_charge = monthly_demand_charge.rate_usd_per_kw * Decimal("50")
+    assert result.iloc[peak_index] == expected_charge
+
+    # Only one interval should be charged
+    assert (result > 0).sum() == 1
+
+
+def test_monthly_peak_non_calendar_multiple_periods(usage_df_factory, monthly_demand_charge):
+    """Separate peaks should be identified for each non-calendar billing period."""
+    # Two non-calendar billing periods
+    billing_periods = [
+        (date(2024, 1, 15), date(2024, 2, 14)),
+        (date(2024, 2, 15), date(2024, 3, 14)),
+    ]
+
+    # Create usage spanning both periods with different peaks
+    kw_values = [35] * (59 * 24)  # ~59 days of base demand
+
+    # Period 1 peak: Jan 20 (day 5), hour 12 -> 50 kW
+    period1_peak_index = 5 * 24 + 12
+    kw_values[period1_peak_index] = 50
+
+    # Period 2 peak: Feb 25 (day 41 from start), hour 8 -> 45 kW
+    period2_peak_index = 41 * 24 + 8
+    kw_values[period2_peak_index] = 45
+
+    usage = usage_df_factory(
+        start="2024-01-15 00:00:00",
+        periods=59 * 24,
+        freq="1h",
+        kw=kw_values,
+        billing_periods=billing_periods,
+    )
+
+    result = apply_demand_charge(usage, monthly_demand_charge)
+
+    # Period 1 peak should be charged
+    expected_charge_1 = monthly_demand_charge.rate_usd_per_kw * Decimal("50")
+    assert result.iloc[period1_peak_index] == expected_charge_1
+
+    # Period 2 peak should be charged
+    expected_charge_2 = monthly_demand_charge.rate_usd_per_kw * Decimal("45")
+    assert result.iloc[period2_peak_index] == expected_charge_2
+
+    # Exactly 2 intervals should be charged (one per billing period)
+    assert (result > 0).sum() == 2
+
+
+def test_daily_peak_non_calendar_billing_period(usage_df_factory, daily_demand_charge):
+    """Daily peaks should work correctly regardless of non-calendar billing periods."""
+    # Non-calendar billing period
+    billing_periods = [(date(2024, 1, 15), date(2024, 1, 19))]
+
+    # 5 days with different daily peaks
+    daily_peaks = [40, 45, 50, 42, 38]
+    kw_values = []
+    for day_peak in daily_peaks:
+        # Peak at hour 12 each day
+        day_values = [day_peak - 10 if h != 12 else day_peak for h in range(24)]
+        kw_values.extend(day_values)
+
+    usage = usage_df_factory(
+        start="2024-01-15 00:00:00",
+        periods=5 * 24,
+        freq="1h",
+        kw=kw_values,
+        billing_periods=billing_periods,
+    )
+
+    result = apply_demand_charge(usage, daily_demand_charge)
+
+    # Each day should have one peak charged at hour 12
+    for day in range(5):
+        peak_index = day * 24 + 12
+        expected_charge = daily_demand_charge.rate_usd_per_kw * daily_peaks[day]
+        assert result.iloc[peak_index] == expected_charge
+
+    # Exactly 5 intervals should be charged (one per day)
+    assert (result > 0).sum() == 5
+
+
+# --- Applicability Date Scaling Tests (TDD - Will Fail Until Implemented) ---
+
+
+def test_applicability_start_date_mid_billing_period_scales_charge(usage_df_factory):
+    """Charge should be scaled when applicability start_date falls mid-billing period.
+
+    Billing period: Jan 1 - Jan 31 (31 days)
+    Applicability: start_date=Jan 15 (17 applicable days: Jan 15-31)
+    Expected: Charge scaled by 17/31
+    """
+    billing_periods = [(date(2024, 1, 1), date(2024, 1, 31))]
+
+    # Peak at Jan 20 (within applicable range)
+    kw_values = [35] * (31 * 24)
+    peak_index = 19 * 24 + 12  # Jan 20, hour 12
+    kw_values[peak_index] = 50
+
+    usage = usage_df_factory(
+        start="2024-01-01 00:00:00",
+        periods=31 * 24,
+        freq="1h",
+        kw=kw_values,
+        billing_periods=billing_periods,
+    )
+
+    charge = DemandCharge(
+        name="Mid-period start",
+        rate_usd_per_kw=Decimal("15.00"),
+        type=PeakType.MONTHLY,
+        applicability=ApplicabilityRule(start_date=date(2000, 1, 15)),  # Year 2000 for normalization
+    )
+
+    result = apply_demand_charge(usage, charge)
+
+    # Full charge would be $15 * 50 = $750
+    # Scaled by 17/31 applicable days
+    full_charge = Decimal("15.00") * Decimal("50")
+    scaling_factor = Decimal("17") / Decimal("31")
+    expected_charge = full_charge * scaling_factor
+
+    assert abs(result.sum() - expected_charge) < Decimal("0.01")
+
+
+def test_applicability_end_date_mid_billing_period_scales_charge(usage_df_factory):
+    """Charge should be scaled when applicability end_date falls mid-billing period.
+
+    Billing period: Jan 1 - Jan 31 (31 days)
+    Applicability: end_date=Jan 20 (20 applicable days: Jan 1-20)
+    Expected: Charge scaled by 20/31
+    """
+    billing_periods = [(date(2024, 1, 1), date(2024, 1, 31))]
+
+    # Peak at Jan 10 (within applicable range)
+    kw_values = [35] * (31 * 24)
+    peak_index = 9 * 24 + 12  # Jan 10, hour 12
+    kw_values[peak_index] = 50
+
+    usage = usage_df_factory(
+        start="2024-01-01 00:00:00",
+        periods=31 * 24,
+        freq="1h",
+        kw=kw_values,
+        billing_periods=billing_periods,
+    )
+
+    charge = DemandCharge(
+        name="Mid-period end",
+        rate_usd_per_kw=Decimal("15.00"),
+        type=PeakType.MONTHLY,
+        applicability=ApplicabilityRule(end_date=date(2000, 1, 20)),  # Year 2000 for normalization
+    )
+
+    result = apply_demand_charge(usage, charge)
+
+    # Full charge would be $15 * 50 = $750
+    # Scaled by 20/31 applicable days
+    full_charge = Decimal("15.00") * Decimal("50")
+    scaling_factor = Decimal("20") / Decimal("31")
+    expected_charge = full_charge * scaling_factor
+
+    assert abs(result.sum() - expected_charge) < Decimal("0.01")
+
+
+def test_applicability_both_dates_mid_billing_period_scales_charge(usage_df_factory):
+    """Charge should be scaled when both start_date and end_date fall mid-billing period.
+
+    Billing period: Jan 1 - Jan 31 (31 days)
+    Applicability: start_date=Jan 10, end_date=Jan 20 (11 applicable days)
+    Expected: Charge scaled by 11/31
+    """
+    billing_periods = [(date(2024, 1, 1), date(2024, 1, 31))]
+
+    # Peak at Jan 15 (within applicable range)
+    kw_values = [35] * (31 * 24)
+    peak_index = 14 * 24 + 12  # Jan 15, hour 12
+    kw_values[peak_index] = 50
+
+    usage = usage_df_factory(
+        start="2024-01-01 00:00:00",
+        periods=31 * 24,
+        freq="1h",
+        kw=kw_values,
+        billing_periods=billing_periods,
+    )
+
+    charge = DemandCharge(
+        name="Mid-period both",
+        rate_usd_per_kw=Decimal("15.00"),
+        type=PeakType.MONTHLY,
+        applicability=ApplicabilityRule(
+            start_date=date(2000, 1, 10),
+            end_date=date(2000, 1, 20),
+        ),
+    )
+
+    result = apply_demand_charge(usage, charge)
+
+    # Full charge would be $15 * 50 = $750
+    # Scaled by 11/31 applicable days
+    full_charge = Decimal("15.00") * Decimal("50")
+    scaling_factor = Decimal("11") / Decimal("31")
+    expected_charge = full_charge * scaling_factor
+
+    assert abs(result.sum() - expected_charge) < Decimal("0.01")
+
+
+def test_applicability_dates_fully_cover_billing_period_no_scaling(usage_df_factory):
+    """No scaling when applicability dates fully cover the billing period.
+
+    Billing period: Jan 15 - Feb 14
+    Applicability: start_date=Jan 1, end_date=Feb 28 (fully covers billing period)
+    Expected: Full charge, no scaling
+    """
+    billing_periods = [(date(2024, 1, 15), date(2024, 2, 14))]
+
+    # Peak at Jan 25
+    kw_values = [35] * (31 * 24)
+    peak_index = 10 * 24 + 12  # 10 days after Jan 15, hour 12
+    kw_values[peak_index] = 50
+
+    usage = usage_df_factory(
+        start="2024-01-15 00:00:00",
+        periods=31 * 24,
+        freq="1h",
+        kw=kw_values,
+        billing_periods=billing_periods,
+    )
+
+    charge = DemandCharge(
+        name="Full coverage",
+        rate_usd_per_kw=Decimal("15.00"),
+        type=PeakType.MONTHLY,
+        applicability=ApplicabilityRule(
+            start_date=date(2000, 1, 1),
+            end_date=date(2000, 2, 28),
+        ),
+    )
+
+    result = apply_demand_charge(usage, charge)
+
+    # Full charge: $15 * 50 = $750 (no scaling)
+    expected_charge = Decimal("15.00") * Decimal("50")
+
+    assert abs(result.sum() - expected_charge) < Decimal("0.01")

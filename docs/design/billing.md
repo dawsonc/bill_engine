@@ -80,6 +80,6 @@ def validate_usage_dataframe(usage: pd.DataFrame):
     - Daily customer charges are allocated to days and summed
     - Monthly customer charges are allocated by billing month
 - Demand charges
-    - Daily demand charges are allocated to days and summed
+    - Daily demand charges are allocated to days
     - Monthly demand charges are allocated by billing month
         - All demand charges should be scaled by the fraction of calendar days they apply to / total days in billing period
