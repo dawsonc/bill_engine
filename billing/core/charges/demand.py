@@ -137,8 +137,8 @@ def apply_demand_charge(
         # Calculate scaling factor for each billing period
         # Use max scaling factor across all rules (OR logic: most permissive wins)
         period_date_ranges = usage.groupby("_peak_grouping")["interval_start"].agg(["min", "max"])
-        scaling_factors = {}
-        for period, row in period_date_ranges.iterrows():
+
+        def _compute_period_scaling(row):
             period_start = row["min"].date()
             period_end = row["max"].date()
             rule_scalings = [
@@ -146,7 +146,9 @@ def apply_demand_charge(
                 for rule in rules_with_dates
             ]
             # OR logic: take the max scaling factor
-            scaling_factors[period] = max(rule_scalings)
+            return max(rule_scalings)
+
+        scaling_factors = period_date_ranges.apply(_compute_period_scaling, axis=1).to_dict()
 
         usage["_scaling_factor"] = usage["_peak_grouping"].map(scaling_factors)
         demand_cost = demand_cost * usage["_scaling_factor"]

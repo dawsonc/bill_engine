@@ -336,19 +336,20 @@ def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
         # Find intervals with non-zero demand charges
         demand_charge_intervals = []
         if demand_charge_ids:
-            for idx, row in day_df.iterrows():
-                charges_for_interval = []
-                for charge_id, charge_name in charge_id_to_name.items():
-                    amount = row.get(charge_id, 0)
-                    if amount > 0:
-                        charges_for_interval.append({
-                            "name": charge_name,
-                            "amount": round(float(amount), 2),
-                        })
-                if charges_for_interval:
+            # Filter to rows with any demand charge > 0 (avoids iterating all rows)
+            has_demand_charge = (day_df[demand_charge_ids] > 0).any(axis=1)
+            if has_demand_charge.any():
+                # Convert filtered rows to dicts for fast iteration (much faster than iterrows)
+                intervals_with_charges = day_df.loc[has_demand_charge]
+                for record in intervals_with_charges.to_dict("records"):
+                    charges_for_interval = [
+                        {"name": charge_id_to_name[charge_id], "amount": round(float(record[charge_id]), 2)}
+                        for charge_id in demand_charge_ids
+                        if record[charge_id] > 0
+                    ]
                     demand_charge_intervals.append({
-                        "timestamp": row["interval_start"].isoformat(),
-                        "kw": float(row["kw"]),
+                        "timestamp": record["interval_start"].isoformat(),
+                        "kw": float(record["kw"]),
                         "charges": charges_for_interval,
                     })
 

@@ -49,15 +49,22 @@ def _construct_single_rule_mask(
     # Normalize dates to year 2000 for month/day-only comparison
     # This allows rules to match dates regardless of the actual year
     if rule.start_date or rule.end_date:
-        interval_dates_normalized = interval_starts.apply(lambda dt: date(2000, dt.month, dt.day))
+        # Vectorized date normalization: create timestamps with year 2000
+        interval_dates_normalized = pd.to_datetime(
+            {"year": 2000, "month": interval_starts.dt.month, "day": interval_starts.dt.day}
+        )
         if rule.start_date:
             # Normalize rule start_date to year 2000 as well
-            rule_start_normalized = date(2000, rule.start_date.month, rule.start_date.day)
-            rule_mask[~(rule_start_normalized <= interval_dates_normalized)] = False
+            rule_start_normalized = pd.Timestamp(
+                year=2000, month=rule.start_date.month, day=rule.start_date.day
+            )
+            rule_mask &= interval_dates_normalized >= rule_start_normalized
         if rule.end_date:
             # Normalize rule end_date to year 2000 as well
-            rule_end_normalized = date(2000, rule.end_date.month, rule.end_date.day)
-            rule_mask[~(interval_dates_normalized <= rule_end_normalized)] = False
+            rule_end_normalized = pd.Timestamp(
+                year=2000, month=rule.end_date.month, day=rule.end_date.day
+            )
+            rule_mask &= interval_dates_normalized <= rule_end_normalized
 
     return rule_mask
 
