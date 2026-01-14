@@ -448,3 +448,139 @@ def test_edge_cases(
     result = construct_applicability_mask(usage, (rule,))
 
     assert result.sum() == expected_match_count, f"{description} failed"
+
+
+# Multiple Rules (OR Logic) Tests
+
+
+def test_multiple_rules_or_logic_basic(hourly_day_usage):
+    """Two time windows combined with OR logic (morning 8-12 OR evening 16-20).
+
+    Expected: Union of both time windows should match (8 hours total)
+    """
+    morning_rule = ApplicabilityRule(
+        period_start_local=time(8, 0), period_end_local=time(12, 0)
+    )
+    evening_rule = ApplicabilityRule(
+        period_start_local=time(16, 0), period_end_local=time(20, 0)
+    )
+
+    result = construct_applicability_mask(hourly_day_usage, (morning_rule, evening_rule))
+
+    # Should match hours 8-11 (4 hours) + 16-19 (4 hours) = 8 hours
+    assert result.sum() == 8
+
+    # Verify specific hours are matched
+    for hour in [8, 9, 10, 11, 16, 17, 18, 19]:
+        assert result.iloc[hour], f"Hour {hour} should be matched"
+
+    # Verify non-matched hours
+    for hour in [0, 1, 2, 3, 4, 5, 6, 7, 12, 13, 14, 15, 20, 21, 22, 23]:
+        assert not result.iloc[hour], f"Hour {hour} should not be matched"
+
+
+def test_multiple_rules_different_day_types(full_week_usage):
+    """Weekday peak hours (9-17) OR all weekend hours.
+
+    Expected: Weekdays 9am-5pm + all weekend hours
+    """
+    weekday_peak_rule = ApplicabilityRule(
+        day_types=frozenset([DayType.WEEKDAY]),
+        period_start_local=time(9, 0),
+        period_end_local=time(17, 0),
+    )
+    weekend_rule = ApplicabilityRule(
+        day_types=frozenset([DayType.WEEKEND]),
+    )
+
+    result = construct_applicability_mask(full_week_usage, (weekday_peak_rule, weekend_rule))
+
+    # Weekdays (5 days) * 8 peak hours + Weekend (2 days) * 24 hours
+    expected_count = 5 * 8 + 2 * 24
+    assert result.sum() == expected_count
+
+    # Verify weekday intervals match only during peak hours
+    weekday_data = full_week_usage[full_week_usage["is_weekday"]]
+    for idx in weekday_data.index:
+        hour = weekday_data.loc[idx, "interval_start"].hour
+        if 9 <= hour < 17:
+            assert result.loc[idx], f"Weekday hour {hour} should match"
+        else:
+            assert not result.loc[idx], f"Weekday hour {hour} should not match"
+
+    # Verify all weekend intervals match
+    weekend_data = full_week_usage[full_week_usage["is_weekend"]]
+    for idx in weekend_data.index:
+        assert result.loc[idx], "All weekend hours should match"
+
+
+def test_multiple_rules_seasonal(usage_df_factory):
+    """Summer afternoons (Jun-Aug, 12-18) OR winter mornings (Dec-Feb, 6-10).
+
+    Tests OR logic with date range constraints.
+    """
+    # Create data spanning full year
+    usage = usage_df_factory(start="2024-01-01 00:00:00", periods=365 * 24, freq="1h")
+
+    summer_afternoon_rule = ApplicabilityRule(
+        start_date=date(2000, 6, 1),
+        end_date=date(2000, 8, 31),
+        period_start_local=time(12, 0),
+        period_end_local=time(18, 0),
+    )
+    winter_morning_rule = ApplicabilityRule(
+        start_date=date(2000, 12, 1),
+        end_date=date(2000, 12, 31),  # Just December for simpler counting
+        period_start_local=time(6, 0),
+        period_end_local=time(10, 0),
+    )
+
+    result = construct_applicability_mask(usage, (summer_afternoon_rule, winter_morning_rule))
+
+    # Verify summer afternoon intervals match
+    summer_data = usage[
+        (usage["interval_start"].dt.month >= 6) & (usage["interval_start"].dt.month <= 8)
+    ]
+    for idx in summer_data.index:
+        hour = summer_data.loc[idx, "interval_start"].hour
+        if 12 <= hour < 18:
+            assert result.loc[idx], f"Summer hour {hour} should match"
+
+    # Verify December morning intervals match
+    december_data = usage[usage["interval_start"].dt.month == 12]
+    for idx in december_data.index:
+        hour = december_data.loc[idx, "interval_start"].hour
+        if 6 <= hour < 10:
+            assert result.loc[idx], f"December hour {hour} should match"
+
+
+def test_multiple_rules_with_overlap(hourly_day_usage):
+    """Two overlapping time rules should not double-count (OR is idempotent).
+
+    Rule 1: 8-14, Rule 2: 12-18
+    Overlap: 12-14
+    Expected: Union = 8-18 (10 hours), not 12 hours
+    """
+    rule1 = ApplicabilityRule(period_start_local=time(8, 0), period_end_local=time(14, 0))
+    rule2 = ApplicabilityRule(period_start_local=time(12, 0), period_end_local=time(18, 0))
+
+    result = construct_applicability_mask(hourly_day_usage, (rule1, rule2))
+
+    # Should be union: hours 8-17 = 10 hours (not 6+6=12)
+    assert result.sum() == 10
+
+    # Verify each hour in the union
+    for hour in range(8, 18):
+        assert result.iloc[hour], f"Hour {hour} should be in union"
+
+
+def test_empty_rules_tuple_matches_all(hourly_day_usage):
+    """Empty rules tuple means charge applies everywhere (no restrictions).
+
+    This is the default behavior - no applicability rules = always applicable.
+    """
+    result = construct_applicability_mask(hourly_day_usage, ())
+
+    # All intervals should match
+    assert result.all()
+    assert result.sum() == 24

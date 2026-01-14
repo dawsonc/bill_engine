@@ -768,3 +768,211 @@ def test_applicability_dates_fully_cover_billing_period_no_scaling(usage_df_fact
     expected_charge = Decimal("15.00") * Decimal("50")
 
     assert abs(result.sum() - expected_charge) < Decimal("0.01")
+
+
+# Multiple Applicability Rules Tests
+
+
+def test_demand_multiple_time_windows(usage_df_factory):
+    """
+    Demand charge from morning peak (8-12) OR evening peak (16-20).
+
+    Peak should be found across both time windows combined.
+    """
+    # Create 24 hours with peaks in both windows
+    # Morning peak at hour 10: 45 kW
+    # Evening peak at hour 18: 50 kW (global max in applicable windows)
+    kw_values = [30] * 24
+    kw_values[10] = 45  # Morning peak
+    kw_values[18] = 50  # Evening peak (higher)
+    kw_values[14] = 60  # Global max but outside applicable windows
+
+    usage = usage_df_factory(
+        start="2024-01-01 00:00:00",
+        periods=24,
+        freq="1h",
+        kw=kw_values,
+    )
+
+    charge = DemandCharge(
+        name="Dual Window Demand",
+        rate_usd_per_kw=Decimal("20.00"),
+        type=PeakType.MONTHLY,
+        applicability_rules=(
+            ApplicabilityRule(period_start_local=time(8, 0), period_end_local=time(12, 0)),
+            ApplicabilityRule(period_start_local=time(16, 0), period_end_local=time(20, 0)),
+        ),
+    )
+
+    result = apply_demand_charge(usage, charge)
+
+    # Peak within applicable windows is at hour 18 (50 kW)
+    expected_charge = Decimal("20.00") * 50
+    assert result.iloc[18] == expected_charge
+
+    # Hour 14 (global max) should NOT be charged - outside applicable windows
+    assert result.iloc[14] == 0
+
+    # Hour 10 (morning peak) should NOT be charged - not the max across both windows
+    assert result.iloc[10] == 0
+
+    # Only one interval should be charged
+    assert (result > 0).sum() == 1
+
+
+def test_demand_weekday_peak_or_weekend(usage_df_factory):
+    """
+    Demand charge from weekday peak hours (9-17) OR all weekend hours.
+
+    Peak should be found across the union of both rules.
+    """
+    # Create a week with different peaks:
+    # Wednesday (weekday) hour 12: 55 kW
+    # Saturday (weekend) hour 20: 60 kW (global max in applicable intervals)
+    # Thursday hour 22: 70 kW (outside weekday peak hours, not weekend)
+    kw_values = [40] * (7 * 24)
+
+    # Wednesday hour 12 (day 2, hour 12): weekday peak
+    wed_peak_index = 2 * 24 + 12
+    kw_values[wed_peak_index] = 55
+
+    # Saturday hour 20 (day 5, hour 20): weekend peak (should be the max)
+    sat_peak_index = 5 * 24 + 20
+    kw_values[sat_peak_index] = 60
+
+    # Thursday hour 22 (day 3, hour 22): outside applicable hours
+    thu_off_peak_index = 3 * 24 + 22
+    kw_values[thu_off_peak_index] = 70
+
+    usage = usage_df_factory(
+        start="2024-01-01 00:00:00",  # Monday
+        periods=7 * 24,
+        freq="1h",
+        kw=kw_values,
+    )
+
+    charge = DemandCharge(
+        name="Weekday Peak or Weekend Demand",
+        rate_usd_per_kw=Decimal("18.00"),
+        type=PeakType.MONTHLY,
+        applicability_rules=(
+            ApplicabilityRule(
+                day_types=frozenset([DayType.WEEKDAY]),
+                period_start_local=time(9, 0),
+                period_end_local=time(17, 0),
+            ),
+            ApplicabilityRule(day_types=frozenset([DayType.WEEKEND])),
+        ),
+    )
+
+    result = apply_demand_charge(usage, charge)
+
+    # Peak across applicable intervals is Saturday hour 20 (60 kW)
+    expected_charge = Decimal("18.00") * 60
+    assert result.iloc[sat_peak_index] == expected_charge
+
+    # Wednesday peak and Thursday off-peak should NOT be charged
+    assert result.iloc[wed_peak_index] == 0
+    assert result.iloc[thu_off_peak_index] == 0
+
+    # Only one interval should be charged
+    assert (result > 0).sum() == 1
+
+
+def test_demand_seasonal_rules(usage_df_factory):
+    """
+    Demand charge from summer afternoons (Jun-Aug, 14-18) OR winter mornings (Dec, 6-10).
+
+    Tests multiple rules with date and time constraints for demand charges.
+    """
+    # Create data for July and December with different peaks
+    # July: 31 days, December: 31 days (simplified to just these months)
+    # July hour 16: 55 kW (summer afternoon peak)
+    # December hour 8: 50 kW (winter morning peak)
+
+    # Create July data
+    july_kw = [40] * (31 * 24)
+    july_peak_index = 15 * 24 + 16  # July 16, hour 16
+    july_kw[july_peak_index] = 55
+
+    usage_july = usage_df_factory(
+        start="2024-07-01 00:00:00",
+        periods=31 * 24,
+        freq="1h",
+        kw=july_kw,
+    )
+
+    charge = DemandCharge(
+        name="Seasonal Demand",
+        rate_usd_per_kw=Decimal("25.00"),
+        type=PeakType.MONTHLY,
+        applicability_rules=(
+            ApplicabilityRule(
+                start_date=date(2000, 6, 1),
+                end_date=date(2000, 8, 31),
+                period_start_local=time(14, 0),
+                period_end_local=time(18, 0),
+            ),
+            ApplicabilityRule(
+                start_date=date(2000, 12, 1),
+                end_date=date(2000, 12, 31),
+                period_start_local=time(6, 0),
+                period_end_local=time(10, 0),
+            ),
+        ),
+    )
+
+    result = apply_demand_charge(usage_july, charge)
+
+    # July peak should be charged
+    expected_charge = Decimal("25.00") * 55
+    assert result.iloc[july_peak_index] == expected_charge
+
+    # Only one interval should be charged
+    assert (result > 0).sum() == 1
+
+
+def test_demand_multiple_rules_scaling_uses_max(usage_df_factory):
+    """
+    When multiple rules have date constraints, scaling should use max (OR logic).
+
+    Two rules with different date ranges that partially cover the billing period.
+    The scaling factor should be the maximum of the two rules' coverage.
+    """
+    billing_periods = [(date(2024, 1, 1), date(2024, 1, 31))]
+
+    # Peak at Jan 15
+    kw_values = [35] * (31 * 24)
+    peak_index = 14 * 24 + 12  # Jan 15, hour 12
+    kw_values[peak_index] = 50
+
+    usage = usage_df_factory(
+        start="2024-01-01 00:00:00",
+        periods=31 * 24,
+        freq="1h",
+        kw=kw_values,
+        billing_periods=billing_periods,
+    )
+
+    # Rule 1: Jan 1-15 (15 days) -> scaling = 15/31
+    # Rule 2: Jan 10-25 (16 days) -> scaling = 16/31
+    # Max scaling should be 16/31 (OR logic: most permissive wins)
+    charge = DemandCharge(
+        name="Overlapping Rules",
+        rate_usd_per_kw=Decimal("15.00"),
+        type=PeakType.MONTHLY,
+        applicability_rules=(
+            ApplicabilityRule(start_date=date(2000, 1, 1), end_date=date(2000, 1, 15)),
+            ApplicabilityRule(start_date=date(2000, 1, 10), end_date=date(2000, 1, 25)),
+        ),
+    )
+
+    result = apply_demand_charge(usage, charge)
+
+    # Full charge would be $15 * 50 = $750
+    # Scaled by max(15/31, 16/31) = 16/31
+    full_charge = Decimal("15.00") * Decimal("50")
+    scaling_factor = Decimal("16") / Decimal("31")
+    expected_charge = full_charge * scaling_factor
+
+    assert abs(result.sum() - expected_charge) < Decimal("0.01")
