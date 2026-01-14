@@ -68,15 +68,15 @@ def test_zero_usage_intervals(usage_df_factory, energy_charge):
 
 def test_no_applicability_rules(hourly_day_usage):
     """
-    Default rule applies to all intervals (verify all charged).
+    No applicability rules means charge applies to all intervals.
 
     Expected: All intervals charged when no applicability restrictions
     """
-    # Create charge with default (empty) applicability rule
+    # Create charge with no applicability rules (applies everywhere)
     charge = EnergyCharge(
         name="All Hours Energy",
         rate_usd_per_kwh=Decimal("0.30"),
-        applicability=ApplicabilityRule(),  # Default: applies everywhere
+        applicability_rules=(),  # Empty tuple: applies everywhere
     )
 
     result = apply_energy_charge(hourly_day_usage, charge)
@@ -95,8 +95,10 @@ def test_time_of_day_filtering(hourly_day_usage):
     charge = EnergyCharge(
         name="Peak Hours Energy",
         rate_usd_per_kwh=Decimal("0.35"),
-        applicability=ApplicabilityRule(
-            period_start_local=time(12, 0), period_end_local=time(18, 0)
+        applicability_rules=(
+            ApplicabilityRule(
+                period_start_local=time(12, 0), period_end_local=time(18, 0)
+            ),
         ),
     )
 
@@ -120,7 +122,7 @@ def test_weekday_only(full_week_usage):
     charge = EnergyCharge(
         name="Weekday Energy",
         rate_usd_per_kwh=Decimal("0.20"),
-        applicability=ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY])),
+        applicability_rules=(ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY])),),
     )
 
     result = apply_energy_charge(full_week_usage, charge)
@@ -145,7 +147,9 @@ def test_date_range_filtering(month_usage):
     charge = EnergyCharge(
         name="Limited Period Energy",
         rate_usd_per_kwh=Decimal("0.28"),
-        applicability=ApplicabilityRule(start_date=date(2024, 1, 15), end_date=date(2024, 1, 20)),
+        applicability_rules=(
+            ApplicabilityRule(start_date=date(2024, 1, 15), end_date=date(2024, 1, 20)),
+        ),
     )
 
     result = apply_energy_charge(month_usage, charge)
@@ -180,12 +184,14 @@ def test_combined_applicability_rules(usage_df_factory):
     charge = EnergyCharge(
         name="Summer Weekday Business Hours",
         rate_usd_per_kwh=Decimal("0.40"),
-        applicability=ApplicabilityRule(
-            period_start_local=time(9, 0),
-            period_end_local=time(17, 0),
-            start_date=date(2024, 6, 1),
-            end_date=date(2024, 8, 31),
-            day_types=frozenset([DayType.WEEKDAY]),
+        applicability_rules=(
+            ApplicabilityRule(
+                period_start_local=time(9, 0),
+                period_end_local=time(17, 0),
+                start_date=date(2024, 6, 1),
+                end_date=date(2024, 8, 31),
+                day_types=frozenset([DayType.WEEKDAY]),
+            ),
         ),
     )
 
@@ -237,7 +243,9 @@ def test_no_matching_intervals(hourly_day_usage):
     charge = EnergyCharge(
         name="December Only Energy",
         rate_usd_per_kwh=Decimal("0.25"),
-        applicability=ApplicabilityRule(start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)),
+        applicability_rules=(
+            ApplicabilityRule(start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)),
+        ),
     )
 
     result = apply_energy_charge(hourly_day_usage, charge)

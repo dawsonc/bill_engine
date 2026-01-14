@@ -5,81 +5,41 @@ from django.shortcuts import render
 from django.urls import path
 
 from .forms import MonthDayField, TariffYAMLUploadForm
-from .models import CustomerCharge, DemandCharge, EnergyCharge, Tariff
+from .models import ApplicabilityRule, CustomerCharge, DemandCharge, EnergyCharge, Tariff
 from .yaml_service import TariffYAMLExporter, TariffYAMLImporter
 
 
-class EnergyChargeForm(forms.ModelForm):
-    """Form for EnergyCharge with month/day widgets for date fields."""
+class ApplicabilityRuleForm(forms.ModelForm):
+    """Form for ApplicabilityRule with month/day widgets for date fields."""
 
     applies_start_date = MonthDayField(
         required=False,
         label="Applies Start (Month/Day)",
-        help_text="First date of the year this charge applies (inclusive). Leave blank for year-round.",
+        help_text="Seasonal start date (inclusive). Leave blank for year-round.",
     )
     applies_end_date = MonthDayField(
         required=False,
         label="Applies End (Month/Day)",
-        help_text="Last date of the year this charge applies (inclusive). Leave blank for year-round.",
+        help_text="Seasonal end date (inclusive). Leave blank for year-round.",
     )
 
     class Meta:
-        model = EnergyCharge
-        fields = "__all__"
-
-
-class DemandChargeForm(forms.ModelForm):
-    """Form for DemandCharge with month/day widgets for date fields."""
-
-    applies_start_date = MonthDayField(
-        required=False,
-        label="Applies Start (Month/Day)",
-        help_text="First date this charge applies (inclusive). Leave blank for year-round.",
-    )
-    applies_end_date = MonthDayField(
-        required=False,
-        label="Applies End (Month/Day)",
-        help_text="Last date this charge applies (inclusive). Leave blank for year-round.",
-    )
-
-    class Meta:
-        model = DemandCharge
+        model = ApplicabilityRule
         fields = "__all__"
 
 
 class EnergyChargeInline(admin.TabularInline):
     model = EnergyCharge
-    form = EnergyChargeForm
     extra = 1
-    fields = [
-        "name",
-        "rate_usd_per_kwh",
-        "period_start_time_local",
-        "period_end_time_local",
-        "applies_start_date",
-        "applies_end_date",
-        "applies_weekends",
-        "applies_holidays",
-        "applies_weekdays",
-    ]
+    fields = ["name", "rate_usd_per_kwh", "applicability_rules"]
+    filter_horizontal = ["applicability_rules"]
 
 
 class DemandChargeInline(admin.TabularInline):
     model = DemandCharge
-    form = DemandChargeForm
     extra = 1
-    fields = [
-        "name",
-        "rate_usd_per_kw",
-        "period_start_time_local",
-        "period_end_time_local",
-        "applies_start_date",
-        "applies_end_date",
-        "applies_weekends",
-        "applies_holidays",
-        "applies_weekdays",
-        "peak_type",
-    ]
+    fields = ["name", "rate_usd_per_kw", "peak_type", "applicability_rules"]
+    filter_horizontal = ["applicability_rules"]
 
 
 class CustomerChargeInline(admin.TabularInline):
@@ -176,41 +136,88 @@ class TariffAdmin(admin.ModelAdmin):
         return response
 
 
+@admin.register(ApplicabilityRule)
+class ApplicabilityRuleAdmin(admin.ModelAdmin):
+    form = ApplicabilityRuleForm
+    list_display = [
+        "name",
+        "time_range",
+        "date_range",
+        "day_types_display",
+        "usage_count",
+    ]
+    list_filter = ["applies_weekdays", "applies_weekends", "applies_holidays"]
+    search_fields = ["name"]
+
+    def time_range(self, obj):
+        if obj.period_start_time_local and obj.period_end_time_local:
+            return f"{obj.period_start_time_local:%H:%M} - {obj.period_end_time_local:%H:%M}"
+        return "All day"
+
+    time_range.short_description = "Time Range"
+
+    def date_range(self, obj):
+        if obj.applies_start_date and obj.applies_end_date:
+            return f"{obj.applies_start_date:%b %d} - {obj.applies_end_date:%b %d}"
+        return "Year-round"
+
+    date_range.short_description = "Date Range"
+
+    def day_types_display(self, obj):
+        types = []
+        if obj.applies_weekdays:
+            types.append("WD")
+        if obj.applies_weekends:
+            types.append("WE")
+        if obj.applies_holidays:
+            types.append("HOL")
+        return ", ".join(types) if types else "None"
+
+    day_types_display.short_description = "Day Types"
+
+    def usage_count(self, obj):
+        energy = obj.energy_charges.count()
+        demand = obj.demand_charges.count()
+        return f"{energy}E / {demand}D"
+
+    usage_count.short_description = "Used By"
+
+
 @admin.register(EnergyCharge)
 class EnergyChargeAdmin(admin.ModelAdmin):
-    form = EnergyChargeForm
     list_display = [
         "name",
         "tariff",
         "rate_usd_per_kwh",
-        "period_start_time_local",
-        "period_end_time_local",
-        "applies_start_date",
-        "applies_end_date",
+        "rule_count",
     ]
-    list_filter = ["tariff", "applies_weekdays", "applies_weekends", "applies_holidays"]
+    list_filter = ["tariff"]
     search_fields = ["name", "tariff__name"]
+    filter_horizontal = ["applicability_rules"]
+
+    def rule_count(self, obj):
+        return obj.applicability_rules.count()
+
+    rule_count.short_description = "Rules"
 
 
 @admin.register(DemandCharge)
 class DemandChargeAdmin(admin.ModelAdmin):
-    form = DemandChargeForm
     list_display = [
         "name",
         "tariff",
         "rate_usd_per_kw",
-        "period_start_time_local",
-        "period_end_time_local",
         "peak_type",
+        "rule_count",
     ]
-    list_filter = [
-        "tariff",
-        "peak_type",
-        "applies_weekdays",
-        "applies_weekends",
-        "applies_holidays",
-    ]
+    list_filter = ["tariff", "peak_type"]
     search_fields = ["name", "tariff__name"]
+    filter_horizontal = ["applicability_rules"]
+
+    def rule_count(self, obj):
+        return obj.applicability_rules.count()
+
+    rule_count.short_description = "Rules"
 
 
 @admin.register(CustomerCharge)

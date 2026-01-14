@@ -32,7 +32,7 @@ def apply_energy_charge(
     energy_cost = energy_charge.rate_usd_per_kwh * _to_decimal_series(usage["kwh"])
     applicable_intervals = construct_applicability_mask(
         usage,
-        energy_charge.applicability,
+        energy_charge.applicability_rules,
     )
     energy_cost = energy_cost * applicable_intervals
 

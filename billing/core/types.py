@@ -97,25 +97,31 @@ class ChargeId:
 class EnergyCharge:
     """
     Energy charge rate (e.g., $/kWh) with optional applicability windows.
+
+    When multiple applicability rules are provided, they are combined with OR logic:
+    the charge applies if ANY rule matches the interval.
     """
 
     name: str
     rate_usd_per_kwh: Decimal
     charge_id: ChargeId = field(default_factory=ChargeId)
-    applicability: ApplicabilityRule = field(default_factory=ApplicabilityRule)
+    applicability_rules: tuple[ApplicabilityRule, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class DemandCharge:
     """
     Demand charge rate (e.g., $/kW) with optional applicability windows.
+
+    When multiple applicability rules are provided, they are combined with OR logic:
+    the charge applies if ANY rule matches the interval.
     """
 
     name: str
     rate_usd_per_kw: Decimal
     type: PeakType = PeakType.MONTHLY
     charge_id: ChargeId = field(default_factory=ChargeId)
-    applicability: ApplicabilityRule = field(default_factory=ApplicabilityRule)
+    applicability_rules: tuple[ApplicabilityRule, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

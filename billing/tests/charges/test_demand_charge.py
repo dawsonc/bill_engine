@@ -358,8 +358,10 @@ def test_peak_hours_only(varying_demand_usage):
         name="Peak Hours Only",
         rate_usd_per_kw=Decimal("20.00"),
         type=PeakType.MONTHLY,
-        applicability=ApplicabilityRule(
-            period_start_local=time(14, 0), period_end_local=time(18, 0)
+        applicability_rules=(
+            ApplicabilityRule(
+                period_start_local=time(14, 0), period_end_local=time(18, 0)
+            ),
         ),
     )
 
@@ -404,7 +406,7 @@ def test_weekday_demand_only(usage_df_factory):
         name="Weekday Demand",
         rate_usd_per_kw=Decimal("18.00"),
         type=PeakType.MONTHLY,
-        applicability=ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY])),
+        applicability_rules=(ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY])),),
     )
 
     result = apply_demand_charge(usage, charge)
@@ -433,7 +435,9 @@ def test_no_applicable_intervals(hourly_day_usage):
         name="December Only",
         rate_usd_per_kw=Decimal("15.00"),
         type=PeakType.MONTHLY,
-        applicability=ApplicabilityRule(start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)),
+        applicability_rules=(
+            ApplicabilityRule(start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)),
+        ),
     )
 
     result = apply_demand_charge(hourly_day_usage, charge)
@@ -621,7 +625,9 @@ def test_applicability_start_date_mid_billing_period_scales_charge(usage_df_fact
         name="Mid-period start",
         rate_usd_per_kw=Decimal("15.00"),
         type=PeakType.MONTHLY,
-        applicability=ApplicabilityRule(start_date=date(2000, 1, 15)),  # Year 2000 for normalization
+        applicability_rules=(
+            ApplicabilityRule(start_date=date(2000, 1, 15)),  # Year 2000 for normalization
+        ),
     )
 
     result = apply_demand_charge(usage, charge)
@@ -661,7 +667,9 @@ def test_applicability_end_date_mid_billing_period_scales_charge(usage_df_factor
         name="Mid-period end",
         rate_usd_per_kw=Decimal("15.00"),
         type=PeakType.MONTHLY,
-        applicability=ApplicabilityRule(end_date=date(2000, 1, 20)),  # Year 2000 for normalization
+        applicability_rules=(
+            ApplicabilityRule(end_date=date(2000, 1, 20)),  # Year 2000 for normalization
+        ),
     )
 
     result = apply_demand_charge(usage, charge)
@@ -701,9 +709,11 @@ def test_applicability_both_dates_mid_billing_period_scales_charge(usage_df_fact
         name="Mid-period both",
         rate_usd_per_kw=Decimal("15.00"),
         type=PeakType.MONTHLY,
-        applicability=ApplicabilityRule(
-            start_date=date(2000, 1, 10),
-            end_date=date(2000, 1, 20),
+        applicability_rules=(
+            ApplicabilityRule(
+                start_date=date(2000, 1, 10),
+                end_date=date(2000, 1, 20),
+            ),
         ),
     )
 
@@ -744,9 +754,11 @@ def test_applicability_dates_fully_cover_billing_period_no_scaling(usage_df_fact
         name="Full coverage",
         rate_usd_per_kw=Decimal("15.00"),
         type=PeakType.MONTHLY,
-        applicability=ApplicabilityRule(
-            start_date=date(2000, 1, 1),
-            end_date=date(2000, 2, 28),
+        applicability_rules=(
+            ApplicabilityRule(
+                start_date=date(2000, 1, 1),
+                end_date=date(2000, 2, 28),
+            ),
         ),
     )
 

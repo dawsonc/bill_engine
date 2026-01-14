@@ -27,9 +27,93 @@ class Tariff(models.Model):
         return f"{self.name} ({self.utility.name})"
 
 
+class ApplicabilityRule(models.Model):
+    """
+    Reusable applicability window for energy and demand charges.
+
+    Multiple charges can share rules, and one charge can have multiple rules.
+    When a charge has multiple rules, they combine with OR logic (charge applies
+    if ANY rule matches).
+    """
+
+    name = models.CharField(
+        max_length=200,
+        help_text="Descriptive name (e.g., 'Summer Peak Hours')",
+    )
+    period_start_time_local = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="Start time (inclusive). Null = start of day.",
+    )
+    period_end_time_local = models.TimeField(
+        null=True,
+        blank=True,
+        help_text="End time (exclusive). Null = end of day.",
+    )
+    applies_start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Seasonal start (month/day only). Null = year-round.",
+    )
+    applies_end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Seasonal end (month/day only). Null = year-round.",
+    )
+    applies_weekdays = models.BooleanField(
+        default=True,
+        help_text="Whether this rule applies on weekdays",
+    )
+    applies_weekends = models.BooleanField(
+        default=True,
+        help_text="Whether this rule applies on weekends",
+    )
+    applies_holidays = models.BooleanField(
+        default=True,
+        help_text="Whether this rule applies on utility holidays",
+    )
+
+    def clean(self):
+        """Validate rule constraints."""
+        # Validate time period (only if both are provided)
+        if self.period_start_time_local and self.period_end_time_local:
+            if self.period_end_time_local <= self.period_start_time_local:
+                raise ValidationError(
+                    {"period_end_time_local": "Period end time must be after period start time."}
+                )
+
+        # Validate date range (only if both dates are provided)
+        # Compare only month/day by normalizing to year 2000
+        if self.applies_start_date and self.applies_end_date:
+            start_normalized = date(
+                2000, self.applies_start_date.month, self.applies_start_date.day
+            )
+            end_normalized = date(
+                2000, self.applies_end_date.month, self.applies_end_date.day
+            )
+            if end_normalized < start_normalized:
+                raise ValidationError(
+                    {"applies_end_date": "Applicable end date must be on or after the start date."}
+                )
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        parts = [self.name]
+        if self.period_start_time_local and self.period_end_time_local:
+            parts.append(
+                f"{self.period_start_time_local:%H:%M}-{self.period_end_time_local:%H:%M}"
+            )
+        return " ".join(parts)
+
+
 class EnergyCharge(models.Model):
     """
     Represents a time-of-use energy charge ($/kWh) for a tariff.
+
+    Applicability is determined by linked ApplicabilityRule objects.
+    Multiple rules are combined with OR logic (charge applies if ANY rule matches).
     """
 
     tariff = models.ForeignKey(
@@ -46,51 +130,12 @@ class EnergyCharge(models.Model):
         decimal_places=5,
         help_text="Rate in $/kWh",
     )
-    period_start_time_local = models.TimeField(
-        help_text="Start time of the period in customer's local time (inclusive)"
-    )
-    period_end_time_local = models.TimeField(
-        help_text="End time of the period in customer's local time (exclusive of the next minute)"
-    )
-    applies_start_date = models.DateField(
-        null=True,
+    applicability_rules = models.ManyToManyField(
+        ApplicabilityRule,
         blank=True,
-        help_text="First date of the year that this charge applies (inclusive). Null if year-round.",
+        related_name="energy_charges",
+        help_text="Applicability rules (combined with OR logic)",
     )
-    applies_end_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Last date of the year that this charge applies (inclusive). Null if year-round.",
-    )
-    applies_weekends = models.BooleanField(
-        default=True, help_text="Whether this charge applies on weekends"
-    )
-    applies_holidays = models.BooleanField(
-        default=True, help_text="Whether this charge applies on utility holidays"
-    )
-    applies_weekdays = models.BooleanField(
-        default=True, help_text="Whether this charge applies on weekdays"
-    )
-
-    def clean(self):
-        """Validate charge constraints."""
-        # Validate time period
-        if self.period_end_time_local <= self.period_start_time_local:
-            raise ValidationError(
-                {"period_end_time_local": "Period end time must be after period start time."}
-            )
-
-        # Validate date range (only if both dates are provided)
-        # Compare only month/day by normalizing to year 2000
-        if self.applies_start_date and self.applies_end_date:
-            start_normalized = date(
-                2000, self.applies_start_date.month, self.applies_start_date.day
-            )
-            end_normalized = date(2000, self.applies_end_date.month, self.applies_end_date.day)
-            if end_normalized < start_normalized:
-                raise ValidationError(
-                    {"applies_end_date": "Applicable end date must be on or after the start date."}
-                )
 
     class Meta:
         ordering = ["tariff", "name"]
@@ -102,7 +147,10 @@ class EnergyCharge(models.Model):
 class DemandCharge(models.Model):
     """
     Represents a demand charge ($/kW) for a tariff.
+
     Charges based on the maximum power demand during applicable periods.
+    Applicability is determined by linked ApplicabilityRule objects.
+    Multiple rules are combined with OR logic (charge applies if ANY rule matches).
     """
 
     PEAK_TYPE_CHOICES = [
@@ -124,30 +172,11 @@ class DemandCharge(models.Model):
         decimal_places=5,
         help_text="Rate in $/kW",
     )
-    period_start_time_local = models.TimeField(
-        help_text="Start time of the period in customer's local time (inclusive)"
-    )
-    period_end_time_local = models.TimeField(
-        help_text="End time of the period in customer's local time (exclusive of the next minute)"
-    )
-    applies_start_date = models.DateField(
-        null=True,
+    applicability_rules = models.ManyToManyField(
+        ApplicabilityRule,
         blank=True,
-        help_text="First date this charge applies (inclusive). Null if year-round.",
-    )
-    applies_end_date = models.DateField(
-        null=True,
-        blank=True,
-        help_text="Last date this charge applies (inclusive). Null if year-round.",
-    )
-    applies_weekends = models.BooleanField(
-        default=True, help_text="Whether this charge applies on weekends"
-    )
-    applies_holidays = models.BooleanField(
-        default=True, help_text="Whether this charge applies on utility holidays"
-    )
-    applies_weekdays = models.BooleanField(
-        default=True, help_text="Whether this charge applies on weekdays"
+        related_name="demand_charges",
+        help_text="Applicability rules (combined with OR logic)",
     )
     peak_type = models.CharField(
         max_length=10,
@@ -155,29 +184,6 @@ class DemandCharge(models.Model):
         default="monthly",
         help_text="Whether peak is calculated daily or monthly",
     )
-
-    def clean(self):
-        """Validate charge constraints."""
-        # Validate time period
-        if self.period_end_time_local and self.period_start_time_local:
-            if self.period_end_time_local <= self.period_start_time_local:
-                raise ValidationError(
-                    {"period_end_time_local": "Period end time must be after period start time."}
-                )
-
-        # Validate date range (only if both dates are provided)
-        # Compare only month/day by normalizing to year 2000
-        if self.applies_start_date and self.applies_end_date:
-            start_normalized = date(
-                2000, self.applies_start_date.month, self.applies_start_date.day
-            )
-            end_normalized = date(2000, self.applies_end_date.month, self.applies_end_date.day)
-            print(start_normalized)
-            print(end_normalized)
-            if end_normalized < start_normalized:
-                raise ValidationError(
-                    {"applies_end_date": "Applicable end date must be on or after the start date."}
-                )
 
     class Meta:
         ordering = ["tariff", "name"]

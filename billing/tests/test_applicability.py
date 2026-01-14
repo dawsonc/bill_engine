@@ -78,11 +78,11 @@ def test_applicability_rule_validation(
 def test_mixed_week(full_week_usage):
     """Rule applies correctly to weekdays and weekends."""
     weekday_rule = ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY]))
-    result = construct_applicability_mask(full_week_usage, weekday_rule)
+    result = construct_applicability_mask(full_week_usage, (weekday_rule,))
     assert result.sum() == 5 * 24  # five weekdays in a week
 
     weekend_rule = ApplicabilityRule(day_types=frozenset([DayType.WEEKEND]))
-    result = construct_applicability_mask(full_week_usage, weekend_rule)
+    result = construct_applicability_mask(full_week_usage, (weekend_rule,))
     assert result.sum() == 2 * 24  # two weekends in a week
 
 
@@ -93,7 +93,7 @@ def test_mixed_week_with_holiday(full_week_usage):
 
     # Rule for holidays only
     rule = ApplicabilityRule(day_types=frozenset([DayType.HOLIDAY]))
-    result = construct_applicability_mask(full_week_usage, rule)
+    result = construct_applicability_mask(full_week_usage, (rule,))
 
     # Only Friday intervals should match
     expected = full_week_usage["is_holiday"]
@@ -107,7 +107,7 @@ def test_period_start_local_only(hourly_day_usage):
     """Filter with only period_start_local (no end)."""
     rule = ApplicabilityRule(period_start_local=time(12, 0))
 
-    result = construct_applicability_mask(hourly_day_usage, rule)
+    result = construct_applicability_mask(hourly_day_usage, (rule,))
 
     # Should match intervals from 12:00 onwards (12:00-23:00)
     expected_hours = list(range(12, 24))
@@ -124,7 +124,7 @@ def test_period_end_local_only(hourly_day_usage):
     """Filter with only period_end_local (no start)."""
     rule = ApplicabilityRule(period_end_local=time(12, 0))
 
-    result = construct_applicability_mask(hourly_day_usage, rule)
+    result = construct_applicability_mask(hourly_day_usage, (rule,))
 
     # Should match intervals before 12:00 (00:00-11:00)
     expected_hours = list(range(0, 12))
@@ -138,7 +138,7 @@ def test_period_start_local_and_end(hourly_day_usage):
     """Filter with both start and end times."""
     rule = ApplicabilityRule(period_start_local=time(9, 0), period_end_local=time(17, 0))
 
-    result = construct_applicability_mask(hourly_day_usage, rule)
+    result = construct_applicability_mask(hourly_day_usage, (rule,))
 
     # Should match intervals from 9:00 to 16:00 (9:00 <= t < 17:00)
     expected_hours = list(range(9, 17))
@@ -171,7 +171,7 @@ def test_time_boundary_filtering(
     rule = ApplicabilityRule(
         period_start_local=period_start_local, period_end_local=period_end_local
     )
-    result = construct_applicability_mask(hourly_day_usage, rule)
+    result = construct_applicability_mask(hourly_day_usage, (rule,))
 
     assert result.sum() == len(expected_hours)
     for hour in expected_hours:
@@ -187,7 +187,7 @@ def test_no_time_constraints(hourly_day_usage):
     """Both None means apply to all times."""
     rule = ApplicabilityRule(period_start_local=None, period_end_local=None)
 
-    result = construct_applicability_mask(hourly_day_usage, rule)
+    result = construct_applicability_mask(hourly_day_usage, (rule,))
 
     # All intervals should match
     assert result.all()
@@ -201,7 +201,7 @@ def test_start_date_only(month_usage):
     # Rule uses year 2000, but should match usage from any year (month_usage is 2024)
     rule = ApplicabilityRule(start_date=date(2000, 1, 15))
 
-    result = construct_applicability_mask(month_usage, rule)
+    result = construct_applicability_mask(month_usage, (rule,))
 
     # Should match intervals from Jan 15 onwards (month/day only)
     matched_dates = month_usage[result]["interval_start"].dt.date.unique()
@@ -216,7 +216,7 @@ def test_end_date_only(month_usage):
     # Rule uses year 2000, but should match usage from any year (month_usage is 2024)
     rule = ApplicabilityRule(end_date=date(2000, 1, 15))
 
-    result = construct_applicability_mask(month_usage, rule)
+    result = construct_applicability_mask(month_usage, (rule,))
 
     # Should match intervals through Jan 15 (Jan 1-15)
     matched_dates = month_usage[result]["interval_start"].dt.date.unique()
@@ -231,7 +231,7 @@ def test_start_and_end_date(month_usage):
     # Rule uses year 2000, but should match usage from any year (month_usage is 2024)
     rule = ApplicabilityRule(start_date=date(2000, 1, 10), end_date=date(2000, 1, 20))
 
-    result = construct_applicability_mask(month_usage, rule)
+    result = construct_applicability_mask(month_usage, (rule,))
 
     # Should match Jan 10-20 (11 days)
     matched_dates = month_usage[result]["interval_start"].dt.date.unique()
@@ -254,7 +254,7 @@ def test_date_boundary_filtering(month_usage, test_date, should_match):
     """Test date filtering boundary conditions (inclusive start, inclusive end)."""
     # Rule uses year 2000, but should match usage from 2024 (month_usage fixture)
     rule = ApplicabilityRule(start_date=date(2000, 1, 10), end_date=date(2000, 1, 15))
-    result = construct_applicability_mask(month_usage, rule)
+    result = construct_applicability_mask(month_usage, (rule,))
 
     test_intervals = month_usage[month_usage["interval_start"].dt.date == test_date]
     for idx in test_intervals.index:
@@ -265,7 +265,7 @@ def test_no_date_constraints(month_usage):
     """Both None means apply to all dates."""
     rule = ApplicabilityRule(start_date=None, end_date=None)
 
-    result = construct_applicability_mask(month_usage, rule)
+    result = construct_applicability_mask(month_usage, (rule,))
 
     # All intervals should match
     assert result.all()
@@ -276,7 +276,7 @@ def test_single_day_rule(month_usage):
     # Rule uses year 2000, but should match usage from 2024
     rule = ApplicabilityRule(start_date=date(2000, 1, 15), end_date=date(2000, 1, 15))
 
-    result = construct_applicability_mask(month_usage, rule)
+    result = construct_applicability_mask(month_usage, (rule,))
 
     # One day should match (Jan 15 regardless of year)
     # since both start and end dates are inclusive.
@@ -293,7 +293,7 @@ def test_multi_month_date_range(usage_df_factory):
     # Rule uses year 2000 for month/day only comparison
     rule = ApplicabilityRule(start_date=date(2000, 1, 1), end_date=date(2000, 1, 31))
 
-    result = construct_applicability_mask(usage, rule)
+    result = construct_applicability_mask(usage, (rule,))
 
     # Should match all January dates from both 2023 and 2024 data
     matched_dates = usage[result]["interval_start"].dt.date.unique()
@@ -311,7 +311,7 @@ def test_date_matches_across_years(usage_df_factory):
     # Rule uses year 2000 - should still match June 2025 data
     rule = ApplicabilityRule(start_date=date(2000, 6, 1), end_date=date(2000, 6, 30))
 
-    result = construct_applicability_mask(usage_2025, rule)
+    result = construct_applicability_mask(usage_2025, (rule,))
 
     # All 30 days of June should match, regardless of year
     matched_dates = usage_2025[result]["interval_start"].dt.date.unique()
@@ -331,7 +331,7 @@ def test_weekday_peak_hours(full_week_usage):
         period_end_local=time(17, 0),
     )
 
-    result = construct_applicability_mask(full_week_usage, rule)
+    result = construct_applicability_mask(full_week_usage, (rule,))
 
     # Should only match weekday intervals between 9am-5pm
     matched_data = full_week_usage[result]
@@ -360,7 +360,7 @@ def test_summer_weekday_afternoon(usage_df_factory):
         end_date=date(2000, 9, 1),
     )
 
-    result = construct_applicability_mask(usage, rule)
+    result = construct_applicability_mask(usage, (rule,))
 
     matched_data = usage[result]
 
@@ -378,7 +378,7 @@ def test_all_constraints_none_applies_everywhere(full_week_usage):
     """No constraints = all intervals match."""
     rule = ApplicabilityRule()
 
-    result = construct_applicability_mask(full_week_usage, rule)
+    result = construct_applicability_mask(full_week_usage, (rule,))
 
     # All intervals should match
     assert result.all()
@@ -399,7 +399,7 @@ def test_restrictive_combined_filters(full_week_usage):
         end_date=date(2000, 1, 3),
     )
 
-    result = construct_applicability_mask(full_week_usage, rule)
+    result = construct_applicability_mask(full_week_usage, (rule,))
 
     matched_data = full_week_usage[result]
 
@@ -445,6 +445,6 @@ def test_edge_cases(
     """Test edge cases: DST transitions and leap days."""
     usage = usage_df_factory(start=start, periods=periods, freq=freq, tz="US/Pacific")
     rule = ApplicabilityRule(**rule_params)
-    result = construct_applicability_mask(usage, rule)
+    result = construct_applicability_mask(usage, (rule,))
 
     assert result.sum() == expected_match_count, f"{description} failed"

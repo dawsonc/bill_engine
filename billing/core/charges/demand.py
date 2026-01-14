@@ -86,7 +86,7 @@ def apply_demand_charge(
     # Mask out all hours where the charge doesn't apply
     applicable_intervals = construct_applicability_mask(
         usage,
-        demand_charge.applicability,
+        demand_charge.applicability_rules,
     )
     usage["_masked_kw"] = _to_decimal_series(usage["kw"] * applicable_intervals)
 
@@ -127,19 +127,26 @@ def apply_demand_charge(
 
     # Apply scaling for applicability date ranges that fall mid-billing period
     # (only applies to MONTHLY charges with date constraints)
-    if (
-        demand_charge.type == PeakType.MONTHLY
-        and (demand_charge.applicability.start_date or demand_charge.applicability.end_date)
-    ):
+    # Check if any rule has date constraints
+    rules_with_dates = [
+        rule
+        for rule in demand_charge.applicability_rules
+        if rule.start_date or rule.end_date
+    ]
+    if demand_charge.type == PeakType.MONTHLY and rules_with_dates:
         # Calculate scaling factor for each billing period
+        # Use max scaling factor across all rules (OR logic: most permissive wins)
         period_date_ranges = usage.groupby("_peak_grouping")["interval_start"].agg(["min", "max"])
         scaling_factors = {}
         for period, row in period_date_ranges.iterrows():
             period_start = row["min"].date()
             period_end = row["max"].date()
-            scaling_factors[period] = _calculate_applicability_scaling_factor(
-                period_start, period_end, demand_charge.applicability
-            )
+            rule_scalings = [
+                _calculate_applicability_scaling_factor(period_start, period_end, rule)
+                for rule in rules_with_dates
+            ]
+            # OR logic: take the max scaling factor
+            scaling_factors[period] = max(rule_scalings)
 
         usage["_scaling_factor"] = usage["_peak_grouping"].map(scaling_factors)
         demand_cost = demand_cost * usage["_scaling_factor"]
