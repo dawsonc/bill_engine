@@ -1,0 +1,160 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  .billing-results { margin-top: 20px; }
+  .billing-month { margin-bottom: 30px; padding: 15px; background: #f9f9f9; border-radius: 4px; }
+  .billing-month h3 { margin-top: 0; color: #417690; }
+  .billing-month table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .billing-month th, .billing-month td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #ddd; }
+  .billing-month th { background: #f0f0f0; font-weight: bold; }
+  .billing-month .amount { text-align: right; font-family: monospace; }
+  .billing-month .total td { font-weight: bold; border-top: 2px solid #417690; background: #e8f4f8; }
+  .billing-month .charge-type { color: #666; font-size: 0.9em; }
+  .warnings { background: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+  .warnings ul { margin: 5px 0 0 20px; padding: 0; }
+  .error-message { background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; margin-bottom: 15px; border-radius: 4px; color: #721c24; }
+  .summary-box { background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; margin-top: 20px; border-radius: 4px; }
+  .summary-box h3 { margin-top: 0; color: #155724; }
+  .grand-total { font-size: 1.5em; font-weight: bold; color: #155724; }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:customers_customer_changelist' %}">Customers</a>
+  &rsaquo; <a href="{% url 'admin:customers_customer_change' customer.pk %}">{{ customer.name }}</a>
+  &rsaquo; Calculate Bill
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="module">
+  <h2>Calculate Bill for {{ customer.name }}</h2>
+  <p>
+    <strong>Tariff:</strong> {{ customer.current_tariff }}<br>
+    <strong>Timezone:</strong> {{ customer.timezone }}<br>
+    <strong>Billing Day:</strong> {{ customer.billing_day }} of each month
+  </p>
+
+  <form method="post">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+    <div class="errors">
+      {{ form.non_field_errors }}
+    </div>
+    {% endif %}
+
+    <div class="form-row">
+      <div style="display: inline-block; margin-right: 20px;">
+        <label for="{{ form.start_billing_month.id_for_label }}">{{ form.start_billing_month.label }}:</label>
+        {{ form.start_billing_month }}
+        {% if form.start_billing_month.errors %}
+        <p class="errornote">{{ form.start_billing_month.errors }}</p>
+        {% endif %}
+      </div>
+      <div style="display: inline-block;">
+        <label for="{{ form.end_billing_month.id_for_label }}">{{ form.end_billing_month.label }}:</label>
+        {{ form.end_billing_month }}
+        {% if form.end_billing_month.errors %}
+        <p class="errornote">{{ form.end_billing_month.errors }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="submit-row">
+      <input type="submit" value="Calculate Bill" class="default">
+      <a href="{% url 'admin:customers_customer_change' customer.pk %}" class="button cancel-link">Back to Customer</a>
+    </div>
+  </form>
+</div>
+
+{% if error_message %}
+<div class="error-message">
+  <strong>Error:</strong> {{ error_message }}
+</div>
+{% endif %}
+
+{% if billing_result %}
+<div class="billing-results">
+  <h2>Billing Results</h2>
+
+  <p>
+    <strong>Period:</strong> {{ billing_result.period_start }} to {{ billing_result.period_end }}<br>
+    <strong>Tariff Used:</strong> {{ billing_result.tariff }}
+  </p>
+
+  {% if billing_result.warnings %}
+  <div class="warnings">
+    <strong>Warnings:</strong>
+    <ul>
+      {% for warning in billing_result.warnings %}
+      <li>{{ warning }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {% for month in billing_result.billing_months %}
+  <div class="billing-month">
+    <h3>Billing Period: {{ month.period_start }} to {{ month.period_end }}</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Charge Type</th>
+          <th>Description</th>
+          <th class="amount">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in month.energy_line_items %}
+        <tr>
+          <td class="charge-type">Energy</td>
+          <td>{{ item.description }}</td>
+          <td class="amount">${{ item.amount_usd|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+        {% for item in month.demand_line_items %}
+        <tr>
+          <td class="charge-type">Demand</td>
+          <td>{{ item.description }}</td>
+          <td class="amount">${{ item.amount_usd|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+        {% for item in month.customer_line_items %}
+        <tr>
+          <td class="charge-type">Customer</td>
+          <td>{{ item.description }}</td>
+          <td class="amount">${{ item.amount_usd|floatformat:2 }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="total">
+          <td colspan="2"><strong>Monthly Total</strong></td>
+          <td class="amount">${{ month.total_usd|floatformat:2 }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% empty %}
+  <p>No billing data for the selected period.</p>
+  {% endfor %}
+
+  {% if billing_result.billing_months %}
+  <div class="summary-box">
+    <h3>Summary</h3>
+    <p>
+      <strong>Billing Months:</strong> {{ billing_result.billing_months|length }}<br>
+      <span class="grand-total">Grand Total: ${{ billing_result.grand_total_usd|floatformat:2 }}</span>
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

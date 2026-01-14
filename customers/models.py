@@ -1,4 +1,4 @@
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from timezone_field import TimeZoneField
 
@@ -24,6 +24,11 @@ class Customer(models.Model):
         default=5,
         validators=[MinValueValidator(1)],
         help_text="Duration of billing intervals in minutes",
+    )
+    billing_day = models.IntegerField(
+        default=1,
+        validators=[MinValueValidator(1), MaxValueValidator(28)],
+        help_text="Day of month when billing cycle ends (1-28)",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

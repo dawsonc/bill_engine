@@ -1,10 +1,14 @@
 import json
+import logging
 
 from django.contrib import admin
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import path
 
+from billing.exceptions import BillingServiceError
+from billing.forms import BillingMonthRangeForm
+from billing.services import calculate_customer_bill, get_billing_period_for_month
 from customers.forms import UsageChartDateRangeForm
 from customers.usage_analytics import analyze_usage_gaps
 from customers.usage_chart_data import (
@@ -15,6 +19,8 @@ from customers.usage_chart_data import (
 from .csv_service import CustomerCSVExporter, CustomerCSVImporter
 from .forms import CustomerCSVUploadForm
 from .models import Customer
+
+logger = logging.getLogger(__name__)
 
 
 @admin.register(Customer)
@@ -52,6 +58,11 @@ class CustomerAdmin(admin.ModelAdmin):
                 "export/",
                 self.admin_site.admin_view(self.export_customers_view),
                 name="customers_customer_export",
+            ),
+            path(
+                "<path:object_id>/calculate-bill/",
+                self.admin_site.admin_view(self.calculate_bill_view),
+                name="customers_customer_calculate_bill",
             ),
         ]
         return custom_urls + urls
@@ -110,6 +121,78 @@ class CustomerAdmin(admin.ModelAdmin):
         response["Content-Disposition"] = 'attachment; filename="customers_selected.csv"'
         return response
 
+    def calculate_bill_view(self, request, object_id):
+        """Calculate and display bills for a customer."""
+        customer = self.get_object(request, object_id)
+        if customer is None:
+            from django.http import Http404
+
+            raise Http404("Customer not found")
+
+        billing_result = None
+        error_message = None
+
+        if request.method == "POST":
+            form = BillingMonthRangeForm(request.POST, customer=customer)
+            if form.is_valid():
+                try:
+                    start_month = form.cleaned_data["start_billing_month"]
+                    end_month = form.cleaned_data["end_billing_month"]
+
+                    # Parse billing months and calculate date ranges
+                    start_year, start_mo = map(int, start_month.split("-"))
+                    end_year, end_mo = map(int, end_month.split("-"))
+
+                    billing_day = customer.billing_day
+
+                    # Get start date from start billing month
+                    period_start, _ = get_billing_period_for_month(
+                        billing_day, start_year, start_mo
+                    )
+
+                    # Get end date from end billing month
+                    _, period_end = get_billing_period_for_month(
+                        billing_day, end_year, end_mo
+                    )
+
+                    # Build list of billing periods
+                    billing_periods = []
+                    current_year, current_month = start_year, start_mo
+                    while (current_year, current_month) <= (end_year, end_mo):
+                        period = get_billing_period_for_month(
+                            billing_day, current_year, current_month
+                        )
+                        billing_periods.append(period)
+                        current_month += 1
+                        if current_month > 12:
+                            current_month = 1
+                            current_year += 1
+
+                    billing_result = calculate_customer_bill(
+                        customer=customer,
+                        start_date=period_start,
+                        end_date=period_end,
+                        billing_periods=billing_periods,
+                    )
+                except BillingServiceError as e:
+                    error_message = str(e)
+                except Exception as e:
+                    logger.exception(f"Error calculating bill for customer {object_id}")
+                    error_message = f"An error occurred: {e}"
+        else:
+            form = BillingMonthRangeForm(customer=customer)
+
+        context = {
+            **self.admin_site.each_context(request),
+            "customer": customer,
+            "form": form,
+            "billing_result": billing_result,
+            "error_message": error_message,
+            "opts": self.model._meta,
+            "title": f"Calculate Bill - {customer.name}",
+        }
+        return render(request, "admin/customers/calculate_bill.html", context)
+
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         """Override to add usage gap warnings and usage chart to context."""
         extra_context = extra_context or {}
@@ -154,9 +237,6 @@ class CustomerAdmin(admin.ModelAdmin):
 
             except Exception as e:
                 # Log error but don't break admin page
-                import logging
-
-                logger = logging.getLogger(__name__)
                 logger.exception(f"Error preparing data for customer {object_id}: {e}")
 
                 extra_context["usage_gap_warnings"] = []
