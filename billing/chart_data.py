@@ -329,9 +329,7 @@ def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
         )
 
         # Convert to JSON-serializable format
-        timestamps = [
-            ts.isoformat() for ts in day_df["interval_start"].dt.to_pydatetime()
-        ]
+        timestamps = day_df["interval_start"].dt.strftime("%Y-%m-%dT%H:%M:%S%z").tolist()
 
         # Find intervals with non-zero demand charges
         demand_charge_intervals = []

@@ -101,9 +101,8 @@ def analyze_gaps(
         tz="UTC" if tz else None,
     )
 
-    # Find missing timestamps
-    existing_set = set(start_utc.values)
-    missing_timestamps = [ts for ts in full_range if ts not in existing_set]
+    # Find missing timestamps using pandas set operations (avoids numpy/Timestamp type mismatch)
+    missing_timestamps = full_range.difference(start_utc)
 
     # Group by month
     missing_by_month: dict[str, int] = defaultdict(int)
