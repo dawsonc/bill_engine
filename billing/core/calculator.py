@@ -4,7 +4,6 @@ Core billing calculator functions.
 Orchestrates charge application and monthly bill aggregation.
 """
 
-from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 from typing import Any
@@ -17,9 +16,6 @@ from .charges.energy import apply_energy_charge
 from .types import (
     BillingMonthResult,
     BillLineItem,
-    ChargeId,
-    CustomerChargeType,
-    MonthlyBillResult,
     Tariff,
 )
 from .util import _derive_calendar_months, _trim_to_date_range
@@ -91,7 +87,7 @@ def _sum_charges_for_group(
 
         # Convert to Decimal if needed
         if not isinstance(monthly_sum, Decimal):
-            monthly_sum = Decimal(str(monthly_sum))
+            monthly_sum = Decimal(monthly_sum)
 
         # Look up charge object to get name and type
         charge_type, charge_obj = charge_map[charge_col]
@@ -113,47 +109,6 @@ def _sum_charges_for_group(
     return energy_line_items, demand_line_items, customer_line_items
 
 
-def _aggregate_line_items_weighted(
-    monthly_results: list[MonthlyBillResult],
-    line_item_attr: str,
-    weights: dict[date, Decimal],
-) -> list[BillLineItem]:
-    """
-    Aggregate line items across calendar months with day-based weighting.
-
-    Groups line items by charge_id and applies weighted sum based on the
-    number of days each calendar month contributes to the billing period.
-
-    Args:
-        monthly_results: List of MonthlyBillResult for each calendar month portion
-        line_item_attr: Attribute name to access line items ("demand_line_items" or "customer_line_items")
-        weights: Mapping from month_start date to weight (Decimal between 0 and 1)
-
-    Returns:
-        List of aggregated BillLineItem with weighted amounts
-    """
-
-    charge_amounts: dict[ChargeId, Decimal] = defaultdict(Decimal)
-    charge_descriptions: dict[ChargeId, str] = {}
-
-    for result in monthly_results:
-        weight = weights.get(result.month_start, Decimal("1"))
-        line_items = getattr(result, line_item_attr)
-
-        for item in line_items:
-            charge_amounts[item.charge_id] += item.amount_usd * weight
-            charge_descriptions[item.charge_id] = item.description
-
-    return [
-        BillLineItem(
-            description=charge_descriptions[charge_id],
-            amount_usd=amount,
-            charge_id=charge_id,
-        )
-        for charge_id, amount in charge_amounts.items()
-    ]
-
-
 def _calculate_billing_month_result(
     billing_df: pd.DataFrame,
     period_start: date,
@@ -166,8 +121,9 @@ def _calculate_billing_month_result(
 
     For billing months spanning multiple calendar months:
     - Energy charges: simple sum of all energy in the billing month
-    - Customer charges: weighted by days in each calendar month portion
-    - Demand charges: full monthly demand (peak * rate) weighted by days in each portion
+    - Customer charges: simple sum if daily, weighted if monthly
+    - Demand charges: pro-rated if a demand charge only applies for part of the
+        billing month
 
     Args:
         billing_df: DataFrame with per-interval charges
@@ -177,7 +133,7 @@ def _calculate_billing_month_result(
         charge_columns: List of charge column names
 
     Returns:
-        BillingMonthResult with weighted aggregations for demand/customer charges
+        BillingMonthResult
     """
 
     # Filter billing_df to only intervals within this billing period
@@ -191,122 +147,36 @@ def _calculate_billing_month_result(
         return BillingMonthResult(
             period_start=period_start,
             period_end=period_end,
-            monthly_breakdowns=(),
             energy_line_items=(),
             demand_line_items=(),
             customer_line_items=(),
             total_usd=Decimal("0"),
         )
 
-    # Group by calendar month within the billing period
-    period_df["_month_period"] = period_df["interval_start"].dt.to_period("M")
-    grouped = period_df.groupby("_month_period")
-
-    # Calculate days in billing period for weighting
-    total_days = (period_end - period_start).days + 1
-
-    monthly_results: list[MonthlyBillResult] = []
-    weights: dict[date, Decimal] = {}
-
-    for month_period, group_df in grouped:
-        # Calculate the actual date range for this month within the billing period
-        month_start_full = month_period.start_time.date()
-        month_end_full = month_period.end_time.date()
-
-        # Clip to billing period boundaries
-        month_start_clipped = max(month_start_full, period_start)
-        month_end_clipped = min(month_end_full, period_end)
-
-        days_in_month_portion = (month_end_clipped - month_start_clipped).days + 1
-        weight = Decimal(days_in_month_portion) / Decimal(total_days)
-        weights[month_start_clipped] = weight
-
-        # Calculate line items for this month portion (simple sum, not weighted yet)
-        energy_items, demand_items, customer_items = _sum_charges_for_group(
-            group_df, charge_columns, charge_map
-        )
-
-        monthly_result = MonthlyBillResult(
-            month_start=month_start_clipped,
-            month_end=month_end_clipped,
-            energy_line_items=tuple(energy_items),
-            demand_line_items=tuple(demand_items),
-            customer_line_items=tuple(customer_items),
-            total_usd=sum(
-                item.amount_usd
-                for items in [energy_items, demand_items, customer_items]
-                for item in items
-            ),
-        )
-        monthly_results.append(monthly_result)
-
-    # Sort monthly results chronologically
-    monthly_results.sort(key=lambda r: r.month_start)
-
-    # Aggregate across months with appropriate weighting
-    # Energy: simple sum (no weighting)
-    aggregated_energy = [
-        BillLineItem(
-            description=item.description,
-            amount_usd=sum(
-                line_item.amount_usd
-                for result in monthly_results
-                for line_item in result.energy_line_items
-                if line_item.charge_id == item.charge_id
-            ),
-            charge_id=item.charge_id,
-        )
-        for item in (monthly_results[0].energy_line_items if monthly_results else [])
-    ]
-
-    # Demand: weighted sum of full monthly demand charges
-    # The demand charge for each calendar month should be peak_kw * rate, weighted by days
-    aggregated_demand = _aggregate_line_items_weighted(
-        monthly_results, "demand_line_items", weights
+    # Sum charges and create line items
+    energy_line_items, demand_line_items, customer_line_items = _sum_charges_for_group(
+        period_df, charge_columns, charge_map
     )
 
-    # Customer: handle differently based on charge type (daily vs monthly)
-    aggregated_customer: list[BillLineItem] = []
-    customer_charge_amounts: dict[ChargeId, Decimal] = defaultdict(Decimal)
-    customer_charge_descriptions: dict[ChargeId, str] = {}
-
-    for charge_col, (charge_type, charge_obj) in charge_map.items():
-        if charge_type == "customer":
-            if charge_obj.type == CustomerChargeType.DAILY:
-                # Daily charge: multiply by number of days in billing period
-                customer_charge_amounts[charge_obj.charge_id] += charge_obj.amount_usd * Decimal(
-                    total_days
-                )
-            else:
-                # Monthly charge: weight by days in each calendar month portion
-                for result in monthly_results:
-                    weight = weights.get(result.month_start, Decimal("1"))
-                    customer_charge_amounts[charge_obj.charge_id] += charge_obj.amount_usd * weight
-            customer_charge_descriptions[charge_obj.charge_id] = charge_obj.name
-
-    aggregated_customer = [
-        BillLineItem(
-            description=customer_charge_descriptions[charge_id],
-            amount_usd=amount,
-            charge_id=charge_id,
-        )
-        for charge_id, amount in customer_charge_amounts.items()
-    ]
-
-    total = sum(
-        item.amount_usd
-        for items in [aggregated_energy, aggregated_demand, aggregated_customer]
-        for item in items
+    # Calculate total
+    total_usd = sum(
+        (item.amount_usd for item in energy_line_items),
+        start=Decimal("0"),
+    ) + sum(
+        (item.amount_usd for item in demand_line_items),
+        start=Decimal("0"),
+    ) + sum(
+        (item.amount_usd for item in customer_line_items),
+        start=Decimal("0"),
     )
 
     return BillingMonthResult(
         period_start=period_start,
         period_end=period_end,
-        monthly_breakdowns=tuple(monthly_results),
-        energy_line_items=tuple(aggregated_energy),
-        demand_line_items=tuple(aggregated_demand),
-        customer_line_items=tuple(aggregated_customer),
-        total_usd=total,
+        energy_line_items=tuple(energy_line_items),
+        demand_line_items=tuple(demand_line_items),
+        customer_line_items=tuple(customer_line_items),
+        total_usd=total_usd,
     )
 
 

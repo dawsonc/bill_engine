@@ -152,32 +152,15 @@ class BillLineItem:
 
 
 @dataclass(frozen=True, slots=True)
-class MonthlyBillResult:
-    """
-    Billing result for a calendar month.
-    """
-
-    month_start: date
-    month_end: date
-    energy_line_items: tuple[BillLineItem, ...]
-    demand_line_items: tuple[BillLineItem, ...]
-    customer_line_items: tuple[BillLineItem, ...]
-    total_usd: Decimal
-
-
-@dataclass(frozen=True, slots=True)
 class BillingMonthResult:
     """
     Billing result for a custom billing month.
 
-    A billing month may span multiple calendar months. When it does,
-    monthly_breakdowns contains one MonthlyBillResult per calendar month portion.
-    The aggregated line items apply day-based weighting for customer/demand charges.
+    A billing month may span multiple calendar months.
     """
 
     period_start: date
     period_end: date
-    monthly_breakdowns: tuple[MonthlyBillResult, ...]
     energy_line_items: tuple[BillLineItem, ...]
     demand_line_items: tuple[BillLineItem, ...]
     customer_line_items: tuple[BillLineItem, ...]
