@@ -57,6 +57,27 @@ def _time_to_str(t: time | None, default: str) -> str:
     return t.strftime("%H:%M")
 
 
+def _rule_applies_to_date(rule, target_date: date, day_types: set[DayType]) -> bool:
+    """Check if a single applicability rule applies to the given date."""
+    # Check day type
+    if rule.day_types and not (rule.day_types & day_types):
+        return False
+
+    # Check date range if specified (normalized to month/day)
+    if rule.start_date or rule.end_date:
+        target_normalized = date(2000, target_date.month, target_date.day)
+        if rule.start_date:
+            start_normalized = date(2000, rule.start_date.month, rule.start_date.day)
+            if target_normalized < start_normalized:
+                return False
+        if rule.end_date:
+            end_normalized = date(2000, rule.end_date.month, rule.end_date.day)
+            if target_normalized > end_normalized:
+                return False
+
+    return True
+
+
 def _get_charge_periods(
     tariff: Tariff, target_date: date, day_types: set[DayType]
 ) -> tuple[list[dict], list[dict]]:
@@ -82,55 +103,47 @@ def _get_charge_periods(
 
     # Process energy charges
     for i, charge in enumerate(tariff.energy_charges):
-        rule = charge.applicability
-        # Check if charge applies to this day type
-        if rule.day_types and not (rule.day_types & day_types):
+        # No rules means charge applies everywhere
+        if not charge.applicability_rules:
+            energy_periods.append({
+                "name": charge.name,
+                "start": "00:00",
+                "end": "24:00",
+                "color": CHARGE_COLORS[i % len(CHARGE_COLORS)],
+            })
             continue
 
-        # Check date range if specified (normalized to month/day)
-        if rule.start_date or rule.end_date:
-            target_normalized = date(2000, target_date.month, target_date.day)
-            if rule.start_date:
-                start_normalized = date(2000, rule.start_date.month, rule.start_date.day)
-                if target_normalized < start_normalized:
-                    continue
-            if rule.end_date:
-                end_normalized = date(2000, rule.end_date.month, rule.end_date.day)
-                if target_normalized > end_normalized:
-                    continue
-
-        energy_periods.append({
-            "name": charge.name,
-            "start": _time_to_str(rule.period_start_local, "00:00"),
-            "end": _time_to_str(rule.period_end_local, "24:00"),
-            "color": CHARGE_COLORS[i % len(CHARGE_COLORS)],
-        })
+        # Check each rule (OR logic - add period for each applicable rule)
+        for rule in charge.applicability_rules:
+            if _rule_applies_to_date(rule, target_date, day_types):
+                energy_periods.append({
+                    "name": charge.name,
+                    "start": _time_to_str(rule.period_start_local, "00:00"),
+                    "end": _time_to_str(rule.period_end_local, "24:00"),
+                    "color": CHARGE_COLORS[i % len(CHARGE_COLORS)],
+                })
 
     # Process demand charges
     for i, charge in enumerate(tariff.demand_charges):
-        rule = charge.applicability
-        # Check if charge applies to this day type
-        if rule.day_types and not (rule.day_types & day_types):
+        # No rules means charge applies everywhere
+        if not charge.applicability_rules:
+            demand_periods.append({
+                "name": charge.name,
+                "start": "00:00",
+                "end": "24:00",
+                "color": CHARGE_COLORS[(i + 3) % len(CHARGE_COLORS)],
+            })
             continue
 
-        # Check date range if specified
-        if rule.start_date or rule.end_date:
-            target_normalized = date(2000, target_date.month, target_date.day)
-            if rule.start_date:
-                start_normalized = date(2000, rule.start_date.month, rule.start_date.day)
-                if target_normalized < start_normalized:
-                    continue
-            if rule.end_date:
-                end_normalized = date(2000, rule.end_date.month, rule.end_date.day)
-                if target_normalized > end_normalized:
-                    continue
-
-        demand_periods.append({
-            "name": charge.name,
-            "start": _time_to_str(rule.period_start_local, "00:00"),
-            "end": _time_to_str(rule.period_end_local, "24:00"),
-            "color": CHARGE_COLORS[(i + 3) % len(CHARGE_COLORS)],  # Offset colors from energy
-        })
+        # Check each rule (OR logic - add period for each applicable rule)
+        for rule in charge.applicability_rules:
+            if _rule_applies_to_date(rule, target_date, day_types):
+                demand_periods.append({
+                    "name": charge.name,
+                    "start": _time_to_str(rule.period_start_local, "00:00"),
+                    "end": _time_to_str(rule.period_end_local, "24:00"),
+                    "color": CHARGE_COLORS[(i + 3) % len(CHARGE_COLORS)],
+                })
 
     return energy_periods, demand_periods
 
