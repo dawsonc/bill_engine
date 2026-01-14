@@ -42,6 +42,12 @@ def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
                 'total': [...],
                 'components': {'Service Charge': [...], ...}
             },
+            'daily_usage': {
+                'dates': ['2024-01-01', '2024-01-02', ...],
+                'total_kwh': [...],
+                'max_kw': [...],
+                'peak_demand_days': ['2024-01-15', ...],  # days with peak kW
+            },
         }
     """
     months: list[str] = []
@@ -89,6 +95,35 @@ def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
             while len(values) < num_months:
                 values.append(0.0)
 
+    # Daily usage aggregation from billing_df
+    df = billing_result.billing_df.copy()
+    df["date"] = df["interval_start"].dt.date
+    daily = df.groupby("date").agg({"kwh": "sum", "kw": "max"}).reset_index()
+
+    # Convert to lists for JSON serialization
+    daily_dates = [d.isoformat() for d in daily["date"]]
+    daily_kwh = daily["kwh"].tolist()
+    daily_max_kw = daily["kw"].tolist()
+
+    # Find days with peak demand that caused demand charges
+    peak_demand_days: set[str] = set()
+    for month_result in billing_result.billing_months:
+        # Check if this month has non-zero demand charges
+        has_demand_charges = any(
+            item.amount_usd > 0 for item in month_result.demand_line_items
+        )
+        if has_demand_charges:
+            # Filter to this billing period
+            period_mask = (daily["date"] >= month_result.period_start) & (
+                daily["date"] <= month_result.period_end
+            )
+            period_daily = daily[period_mask]
+            if not period_daily.empty:
+                # Find the day with max kW in this period
+                max_kw_idx = period_daily["kw"].idxmax()
+                peak_date = period_daily.loc[max_kw_idx, "date"]
+                peak_demand_days.add(peak_date.isoformat())
+
     return {
         "months": months,
         "stacked_bar": {
@@ -107,5 +142,11 @@ def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
         "customer_line": {
             "total": customer_totals,
             "components": dict(customer_by_name),
+        },
+        "daily_usage": {
+            "dates": daily_dates,
+            "total_kwh": daily_kwh,
+            "max_kw": daily_max_kw,
+            "peak_demand_days": list(peak_demand_days),
         },
     }

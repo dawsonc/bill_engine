@@ -275,6 +275,11 @@
       <h3>Demand Charges Over Time</h3>
       <div id="demand-line-chart" style="width: 100%; height: 600px;"></div>
     </div>
+
+    <div class="chart-container">
+      <h3>Daily Usage</h3>
+      <div id="daily-usage-chart" style="width: 100%; height: 600px;"></div>
+    </div>
   </div>
   {% endif %}
 
@@ -477,6 +482,94 @@
     }, { responsive: true, displaylogo: false });
   } else {
     document.getElementById('demand-line-chart').innerHTML = '<p style="text-align: center; color: #666;">No demand charges in this period.</p>';
+  }
+
+  // 4. DAILY USAGE CHART
+  if (chartData.daily_usage && chartData.daily_usage.dates.length > 0) {
+    // Find peak demand day data for triangle markers
+    const peakDays = new Set(chartData.daily_usage.peak_demand_days || []);
+    const peakDates = [];
+    const peakYValues = [];
+    const maxKwh = Math.max(...chartData.daily_usage.total_kwh);
+    const maxKw = Math.max(...chartData.daily_usage.max_kw);
+    // Scale factor to convert kW to kWh-equivalent position on y1 axis
+    const kwToKwhScale = maxKw > 0 ? maxKwh / maxKw : 1;
+
+    chartData.daily_usage.dates.forEach((date, i) => {
+      if (peakDays.has(date)) {
+        peakDates.push(date);
+        // Position triangle above the higher of kWh bar or kW line (scaled to y1)
+        const kwhValue = chartData.daily_usage.total_kwh[i];
+        const kwEquivalent = chartData.daily_usage.max_kw[i] * kwToKwhScale;
+        peakYValues.push(Math.max(kwhValue, kwEquivalent) + maxKwh * 0.03);
+      }
+    });
+
+    const dailyTraces = [
+      {
+        x: chartData.daily_usage.dates,
+        y: chartData.daily_usage.total_kwh,
+        name: 'Total kWh',
+        type: 'bar',
+        marker: { color: '#2ca02c' },
+        yaxis: 'y1'
+      },
+      {
+        x: chartData.daily_usage.dates,
+        y: chartData.daily_usage.max_kw,
+        name: 'Max kW',
+        type: 'scatter',
+        mode: 'lines+markers',
+        line: { color: '#d62728', width: 2 },
+        marker: { size: 4 },
+        yaxis: 'y2'
+      }
+    ];
+
+    // Add peak demand day markers if any exist
+    if (peakDates.length > 0) {
+      dailyTraces.push({
+        x: peakDates,
+        y: peakYValues,
+        name: 'Peak Demand Day',
+        type: 'scatter',
+        mode: 'markers',
+        marker: {
+          symbol: 'triangle-up',
+          size: 14,
+          color: '#ff7f0e',
+          line: { color: '#000', width: 1 }
+        },
+        yaxis: 'y1',
+        hovertemplate: 'Peak Demand Day<extra></extra>'
+      });
+    }
+
+    Plotly.newPlot('daily-usage-chart', dailyTraces, {
+      autosize: true,
+      title: { text: 'Daily Energy & Peak Demand', font: { size: 16 } },
+      xaxis: { title: 'Date', automargin: true, type: 'date' },
+      yaxis: {
+        title: 'Energy (kWh)',
+        titlefont: { color: '#2ca02c' },
+        tickfont: { color: '#2ca02c' },
+        automargin: true
+      },
+      yaxis2: {
+        title: 'Peak Demand (kW)',
+        titlefont: { color: '#d62728' },
+        tickfont: { color: '#d62728' },
+        overlaying: 'y',
+        side: 'right',
+        automargin: true
+      },
+      legend: { orientation: 'h', y: -0.2, font: { size: 11 } },
+      margin: { l: 60, r: 60, t: 50, b: 80 },
+      hoverlabel: { namelength: -1, font: { size: 13 } },
+      hovermode: 'x unified'
+    }, { responsive: true, displaylogo: false });
+  } else {
+    document.getElementById('daily-usage-chart').innerHTML = '<p style="text-align: center; color: #666;">No daily usage data available.</p>';
   }
 }) ();
 </script>
