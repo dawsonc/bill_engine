@@ -246,7 +246,7 @@ def customer_charge_to_dto(charge: CustomerChargeModel) -> CustomerCharge:
     )
 
 
-def tariff_to_charge_list(tariff: TariffModel) -> Tariff:
+def tariff_to_dto(tariff: TariffModel) -> Tariff:
     """
     Convert a Django Tariff model with all related charges to a Tariff DTO.
 
@@ -273,8 +273,8 @@ def tariff_to_charge_list(tariff: TariffModel) -> Tariff:
         >>> tariff = Tariff.objects.prefetch_related(
         ...     'energy_charges', 'demand_charges', 'customer_charges'
         ... ).get(pk=1)
-        >>> charge_list = tariff_to_charge_list(tariff)
-        >>> len(charge_list.energy_charges)
+        >>> tariff_dto = tariff_to_dto(tariff)
+        >>> len(tariff_dto.energy_charges)
         3
     """
     # Convert each charge type using dedicated helper functions
@@ -294,7 +294,7 @@ def tariff_to_charge_list(tariff: TariffModel) -> Tariff:
     )
 
 
-def tariffs_to_charge_lists(tariffs_queryset) -> dict[int, Tariff]:
+def tariffs_to_dtos(tariffs_queryset) -> dict[int, Tariff]:
     """
     Batch convert multiple tariffs to Tariff DTOs.
 
@@ -310,8 +310,8 @@ def tariffs_to_charge_lists(tariffs_queryset) -> dict[int, Tariff]:
     Examples:
         >>> from tariffs.models import Tariff
         >>> active_tariffs = Tariff.objects.filter(active=True)
-        >>> charge_lists = tariffs_to_charge_lists(active_tariffs)
-        >>> charge_lists[1].energy_charges
+        >>> tariff_dtos = tariffs_to_dtos(active_tariffs)
+        >>> tariff_dtos[1].energy_charges
         (EnergyCharge(...), EnergyCharge(...))
     """
     # Optimize query with single prefetch for all related charges
@@ -321,4 +321,4 @@ def tariffs_to_charge_lists(tariffs_queryset) -> dict[int, Tariff]:
         "customer_charges",
     )
 
-    return {tariff.pk: tariff_to_charge_list(tariff) for tariff in tariffs}
+    return {tariff.pk: tariff_to_dto(tariff) for tariff in tariffs}

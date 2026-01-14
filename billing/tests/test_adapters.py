@@ -16,8 +16,8 @@ from billing.adapters import (
     demand_charge_to_dto,
     energy_charge_to_dto,
     generate_charge_id,
-    tariff_to_charge_list,
-    tariffs_to_charge_lists,
+    tariff_to_dto,
+    tariffs_to_dtos,
 )
 from billing.core.types import DayType, PeakType
 from tariffs.models import CustomerCharge, DemandCharge, EnergyCharge, Tariff
@@ -242,7 +242,7 @@ def test_customer_charge_daily_conversion(tariff):
 # Full Tariff Conversion Tests
 
 
-def test_tariff_to_charge_list_counts(utility):
+def test_tariff_to_dto_counts(utility):
     """Test converting full tariff produces correct charge counts."""
     tariff = Tariff.objects.create(utility=utility, name="Complete Tariff")
 
@@ -286,14 +286,14 @@ def test_tariff_to_charge_list_counts(utility):
         "energy_charges", "demand_charges", "customer_charges"
     ).get(pk=tariff.pk)
 
-    charge_list = tariff_to_charge_list(tariff)
+    tariff_dto = tariff_to_dto(tariff)
 
-    assert len(charge_list.energy_charges) == 2
-    assert len(charge_list.demand_charges) == 1
-    assert len(charge_list.customer_charges) == 1
+    assert len(tariff_dto.energy_charges) == 2
+    assert len(tariff_dto.demand_charges) == 1
+    assert len(tariff_dto.customer_charges) == 1
 
 
-def test_tariff_to_charge_list_immutability(utility):
+def test_tariff_to_dto_immutability(utility):
     """Test that Tariff uses tuples (immutable)."""
     tariff = Tariff.objects.create(utility=utility, name="Test Tariff")
 
@@ -312,22 +312,22 @@ def test_tariff_to_charge_list_immutability(utility):
         "energy_charges", "demand_charges", "customer_charges"
     ).get(pk=tariff.pk)
 
-    charge_list = tariff_to_charge_list(tariff)
+    tariff_dto = tariff_to_dto(tariff)
 
-    assert isinstance(charge_list.energy_charges, tuple)
-    assert isinstance(charge_list.demand_charges, tuple)
-    assert isinstance(charge_list.customer_charges, tuple)
+    assert isinstance(tariff_dto.energy_charges, tuple)
+    assert isinstance(tariff_dto.demand_charges, tuple)
+    assert isinstance(tariff_dto.customer_charges, tuple)
 
 
 def test_empty_tariff_conversion(utility):
     """Test converting tariff with no charges."""
     empty_tariff = Tariff.objects.create(utility=utility, name="Empty Tariff")
 
-    charge_list = tariff_to_charge_list(empty_tariff)
+    tariff_dto = tariff_to_dto(empty_tariff)
 
-    assert len(charge_list.energy_charges) == 0
-    assert len(charge_list.demand_charges) == 0
-    assert len(charge_list.customer_charges) == 0
+    assert len(tariff_dto.energy_charges) == 0
+    assert len(tariff_dto.demand_charges) == 0
+    assert len(tariff_dto.customer_charges) == 0
 
 
 # Batch Tariff Conversion Tests
@@ -361,15 +361,15 @@ def test_batch_conversion(utility):
     )
 
     queryset = Tariff.objects.all()
-    charge_lists = tariffs_to_charge_lists(queryset)
+    tariff_dtos = tariffs_to_dtos(queryset)
 
-    assert len(charge_lists) == 2
-    assert tariff1.pk in charge_lists
-    assert tariff2.pk in charge_lists
+    assert len(tariff_dtos) == 2
+    assert tariff1.pk in tariff_dtos
+    assert tariff2.pk in tariff_dtos
 
     # Verify contents
-    assert len(charge_lists[tariff1.pk].energy_charges) == 1
-    assert len(charge_lists[tariff2.pk].demand_charges) == 1
+    assert len(tariff_dtos[tariff1.pk].energy_charges) == 1
+    assert len(tariff_dtos[tariff2.pk].demand_charges) == 1
 
 
 def test_batch_conversion_returns_dict(utility):
@@ -378,8 +378,8 @@ def test_batch_conversion_returns_dict(utility):
     Tariff.objects.create(utility=utility, name="Tariff 2")
 
     queryset = Tariff.objects.all()
-    charge_lists = tariffs_to_charge_lists(queryset)
+    tariff_dtos = tariffs_to_dtos(queryset)
 
-    assert isinstance(charge_lists, dict)
-    for key in charge_lists.keys():
+    assert isinstance(tariff_dtos, dict)
+    for key in tariff_dtos.keys():
         assert isinstance(key, int)  # PKs are integers

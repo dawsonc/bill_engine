@@ -14,11 +14,13 @@ def apply_customer_charge(
     """
     Apply customer charge to usage data based on charge type.
 
-    - MONTHLY: Allocate monthly amount evenly to all intervals in each month
+    - MONTHLY: Allocate monthly amount evenly to all intervals in each billing period
     - DAILY: Allocate daily amount evenly to all intervals in each day
 
     Args:
-        usage: a dataframe of usage, as validated by `billing.core.data.validate_usage_dataframe
+        usage: DataFrame with usage data. Required columns:
+            - interval_start: datetime for each interval
+            - billing_period: str identifier for billing period (required for MONTHLY charges)
         customer_charge: the charge to apply
 
     Returns:

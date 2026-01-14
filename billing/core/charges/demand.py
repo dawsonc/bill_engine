@@ -66,9 +66,19 @@ def apply_demand_charge(
     """
     Estimate the demand charge in each interval.
 
+    Finds the peak demand in each period (daily or monthly) and allocates the charge
+    evenly across all intervals that achieve that peak.
+
     Args:
-        usage: a dataframe of usage, as validated by `billing.core.data.validate_usage_dataframe
+        usage: DataFrame with usage data. Required columns:
+            - interval_start: datetime for each interval
+            - kw: demand in kW for each interval
+            - is_weekday, is_weekend, is_holiday: booleans for applicability filtering
+            - billing_period: str identifier for billing period (required for MONTHLY charges)
         demand_charge: the charge to apply
+
+    Returns:
+        Series with per-interval demand charge amounts
     """
     # The demand charge is equal to the rate times the max demand in applicable intervals
     # The maximum is either daily or monthly, depending on the type of charge

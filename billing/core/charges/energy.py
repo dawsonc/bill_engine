@@ -16,9 +16,17 @@ def apply_energy_charge(
     """
     Estimate the energy charge in each interval.
 
+    Multiplies the rate by the energy usage, filtered by applicability rules.
+
     Args:
-        usage: a dataframe of usage, as validated by `billing.core.data.validate_usage_dataframe
+        usage: DataFrame with usage data. Required columns:
+            - interval_start: datetime for each interval
+            - kwh: energy usage in kWh for each interval
+            - is_weekday, is_weekend, is_holiday: booleans for applicability filtering
         energy_charge: the charge to apply
+
+    Returns:
+        Series with per-interval energy charge amounts
     """
     # The energy charge is equal to the rate times the usage in applicable intervals
     energy_cost = energy_charge.rate_usd_per_kwh * _to_decimal_series(usage["kwh"])

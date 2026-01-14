@@ -48,6 +48,9 @@ class ApplicabilityRule:
     Date ranges are inclusive of both start and end.
 
     Date ranges are applied to every year; only the month and day matter.
+    Year-end wrapping is NOT supported: start_date must be earlier than or equal
+    to end_date within the same calendar year. For example, a rule for Dec 1 - Jan 31
+    must be split into two separate rules: Dec 1 - Dec 31 and Jan 1 - Jan 31.
 
     Notes:
         - If a field is None/empty, it is treated as 'no constraint' for that dimension.
@@ -55,7 +58,7 @@ class ApplicabilityRule:
 
     Validation:
         - period_start_local < period_end_local
-        - start_date <= end_date
+        - start_date <= end_date (within same calendar year, no wrapping)
 
     Defaults:
         - Applies to all day_types by default
