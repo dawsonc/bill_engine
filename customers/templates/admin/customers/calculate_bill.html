@@ -147,6 +147,95 @@
   .chart-container .plotly {
     max-width: 100%;
   }
+
+  .daily-detail-section {
+    margin-top: 30px;
+    padding: 20px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+
+  .daily-detail-section h3 {
+    margin-top: 0;
+    color: #417690;
+  }
+
+  .daily-detail-controls {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f5f5f5;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+  }
+
+  .daily-detail-controls label {
+    font-weight: bold;
+    color: #333;
+  }
+
+  .daily-detail-controls select {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 150px;
+  }
+
+  .daily-detail-controls button {
+    padding: 8px 16px;
+    background: #417690;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .daily-detail-controls button:hover {
+    background: #205067;
+  }
+
+  .daily-detail-chart {
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #fafafa;
+    border: 1px solid #eee;
+    border-radius: 4px;
+  }
+
+  .daily-detail-chart h4 {
+    margin-top: 0;
+    color: #555;
+    font-size: 14px;
+  }
+
+  .period-legend {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+
+  .period-legend-item {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 15px;
+    margin-bottom: 5px;
+  }
+
+  .period-legend-color {
+    width: 20px;
+    height: 12px;
+    margin-right: 5px;
+    border-radius: 2px;
+    opacity: 0.3;
+    border: 1px solid rgba(0,0,0,0.3);
+  }
 </style>
 {% endblock %}
 
@@ -279,6 +368,32 @@
     <div class="chart-container">
       <h3>Daily Usage</h3>
       <div id="daily-usage-chart" style="width: 100%; height: 600px;"></div>
+    </div>
+
+    <div class="daily-detail-section">
+      <h3>Daily Detail View</h3>
+      <p>View interval-level usage data for a specific day with charge period overlays.</p>
+
+      <div class="daily-detail-controls">
+        <label for="detail-date-select">Select Date:</label>
+        <select id="detail-date-select">
+          <option value="">-- Choose a date --</option>
+        </select>
+        <button type="button" id="jump-to-peak-btn">Jump to Peak Demand Day</button>
+        <span id="peak-day-info" style="color: #666; font-size: 13px;"></span>
+      </div>
+
+      <div class="daily-detail-chart">
+        <h4>Energy Usage (kWh per interval)</h4>
+        <div id="daily-energy-detail-chart" style="width: 100%; height: 400px;"></div>
+        <div id="energy-period-legend" class="period-legend"></div>
+      </div>
+
+      <div class="daily-detail-chart">
+        <h4>Peak Demand (kW per interval)</h4>
+        <div id="daily-demand-detail-chart" style="width: 100%; height: 400px;"></div>
+        <div id="demand-period-legend" class="period-legend"></div>
+      </div>
     </div>
   </div>
   {% endif %}
@@ -588,6 +703,178 @@
     }, { responsive: true, displaylogo: false });
   } else {
     document.getElementById('daily-usage-chart').innerHTML = '<p style="text-align: center; color: #666;">No daily usage data available.</p>';
+  }
+
+  // 5. DAILY DETAIL CHARTS
+  if (chartData.daily_detail && chartData.daily_detail.available_dates.length > 0) {
+    const dateSelect = document.getElementById('detail-date-select');
+    const peakBtn = document.getElementById('jump-to-peak-btn');
+    const peakInfo = document.getElementById('peak-day-info');
+    const dailyDetail = chartData.daily_detail;
+
+    // Populate date dropdown
+    dailyDetail.available_dates.forEach(date => {
+      const option = document.createElement('option');
+      option.value = date;
+      option.textContent = date;
+      dateSelect.appendChild(option);
+    });
+
+    // Show peak demand day info
+    if (dailyDetail.peak_demand_day) {
+      peakInfo.textContent = `(Peak: ${dailyDetail.peak_demand_day})`;
+    } else {
+      peakBtn.disabled = true;
+      peakBtn.style.opacity = '0.5';
+      peakInfo.textContent = '(No demand charges)';
+    }
+
+    // Render detail charts for a given date
+    function renderDailyDetail(selectedDate) {
+      const data = dailyDetail.by_date[selectedDate];
+      if (!data || data.timestamps.length === 0) {
+        document.getElementById('daily-energy-detail-chart').innerHTML =
+          '<p style="text-align: center; color: #666; padding: 40px;">No data for this date.</p>';
+        document.getElementById('daily-demand-detail-chart').innerHTML =
+          '<p style="text-align: center; color: #666; padding: 40px;">No data for this date.</p>';
+        document.getElementById('energy-period-legend').innerHTML = '';
+        document.getElementById('demand-period-legend').innerHTML = '';
+        return;
+      }
+
+      const plotlyConfig = { responsive: true, displaylogo: false };
+
+      // Helper to create period shapes and legend
+      function createPeriodShapes(periods, selectedDate) {
+        const shapes = [];
+        periods.forEach(period => {
+          // Convert HH:MM to full datetime
+          const startTime = period.start === '24:00' ? '23:59' : period.start;
+          const endTime = period.end === '24:00' ? '23:59' : period.end;
+          const x0 = `${selectedDate}T${startTime}`;
+          const x1 = `${selectedDate}T${endTime}`;
+
+          shapes.push({
+            type: 'rect',
+            xref: 'x',
+            yref: 'paper',
+            x0: x0,
+            x1: x1,
+            y0: 0,
+            y1: 1,
+            fillcolor: period.color,
+            opacity: 0.2,
+            line: { width: 1, color: period.color }
+          });
+        });
+        return shapes;
+      }
+
+      // Helper to create legend HTML
+      function createLegendHtml(periods) {
+        if (periods.length === 0) {
+          return '<em>No charge periods apply to this day.</em>';
+        }
+        return periods.map(p =>
+          `<span class="period-legend-item">
+            <span class="period-legend-color" style="background-color: ${p.color};"></span>
+            ${p.name} (${p.start} - ${p.end})
+          </span>`
+        ).join('');
+      }
+
+      // Energy Detail Chart
+      const energyShapes = createPeriodShapes(data.energy_periods, selectedDate);
+      const energyTrace = {
+        x: data.timestamps,
+        y: data.kwh,
+        name: 'Energy (kWh)',
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#2ca02c', width: 2 },
+        fill: 'tozeroy',
+        fillcolor: 'rgba(44, 160, 44, 0.1)'
+      };
+
+      Plotly.newPlot('daily-energy-detail-chart', [energyTrace], {
+        autosize: true,
+        title: { text: `Energy Usage - ${selectedDate}`, font: { size: 14 } },
+        xaxis: {
+          title: 'Time',
+          type: 'date',
+          tickformat: '%H:%M',
+          automargin: true
+        },
+        yaxis: {
+          title: 'Energy (kWh)',
+          automargin: true
+        },
+        margin: { l: 60, r: 20, t: 40, b: 60 },
+        hoverlabel: { namelength: -1, font: { size: 13 } },
+        hovermode: 'x unified',
+        shapes: energyShapes
+      }, plotlyConfig);
+
+      document.getElementById('energy-period-legend').innerHTML =
+        '<strong>Energy Charge Periods:</strong> ' + createLegendHtml(data.energy_periods);
+
+      // Demand Detail Chart
+      const demandShapes = createPeriodShapes(data.demand_periods, selectedDate);
+      const demandTrace = {
+        x: data.timestamps,
+        y: data.kw,
+        name: 'Demand (kW)',
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: '#d62728', width: 2 },
+        fill: 'tozeroy',
+        fillcolor: 'rgba(214, 39, 40, 0.1)'
+      };
+
+      Plotly.newPlot('daily-demand-detail-chart', [demandTrace], {
+        autosize: true,
+        title: { text: `Peak Demand - ${selectedDate}`, font: { size: 14 } },
+        xaxis: {
+          title: 'Time',
+          type: 'date',
+          tickformat: '%H:%M',
+          automargin: true
+        },
+        yaxis: {
+          title: 'Demand (kW)',
+          automargin: true
+        },
+        margin: { l: 60, r: 20, t: 40, b: 60 },
+        hoverlabel: { namelength: -1, font: { size: 13 } },
+        hovermode: 'x unified',
+        shapes: demandShapes
+      }, plotlyConfig);
+
+      document.getElementById('demand-period-legend').innerHTML =
+        '<strong>Demand Charge Periods:</strong> ' + createLegendHtml(data.demand_periods);
+    }
+
+    // Date select change handler
+    dateSelect.addEventListener('change', function() {
+      const selectedDate = this.value;
+      if (selectedDate) {
+        renderDailyDetail(selectedDate);
+      }
+    });
+
+    // Jump to Peak button handler
+    peakBtn.addEventListener('click', function() {
+      if (dailyDetail.peak_demand_day) {
+        dateSelect.value = dailyDetail.peak_demand_day;
+        renderDailyDetail(dailyDetail.peak_demand_day);
+      }
+    });
+
+    // Auto-select peak day if available
+    if (dailyDetail.peak_demand_day) {
+      dateSelect.value = dailyDetail.peak_demand_day;
+      renderDailyDetail(dailyDetail.peak_demand_day);
+    }
   }
 }) ();
 </script>

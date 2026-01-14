@@ -7,13 +7,158 @@ Converts billing results into structured data for Plotly charts.
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import date, time
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+import pandas as pd
+
 from billing.adapters import tariff_to_dto
+from billing.core.types import DayType, Tariff
 
 if TYPE_CHECKING:
     from billing.services import BillingCalculationResult
+
+# Color palette for charge period overlays
+CHARGE_COLORS = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"]
+
+
+def _get_day_types_for_date(df: pd.DataFrame, target_date: date) -> set[DayType]:
+    """
+    Determine which day types apply to a specific date based on billing_df flags.
+
+    Args:
+        df: DataFrame with is_weekday, is_weekend, is_holiday columns
+        target_date: The date to check
+
+    Returns:
+        Set of applicable DayType values
+    """
+    day_df = df[df["interval_start"].dt.date == target_date]
+    if day_df.empty:
+        return set()
+
+    # Take the first row's flags (they should be consistent for the day)
+    row = day_df.iloc[0]
+    day_types = set()
+    if row.get("is_weekday", False):
+        day_types.add(DayType.WEEKDAY)
+    if row.get("is_weekend", False):
+        day_types.add(DayType.WEEKEND)
+    if row.get("is_holiday", False):
+        day_types.add(DayType.HOLIDAY)
+    return day_types
+
+
+def _time_to_str(t: time | None, default: str) -> str:
+    """Convert time to HH:MM string, or return default if None."""
+    if t is None:
+        return default
+    return t.strftime("%H:%M")
+
+
+def _get_charge_periods(
+    tariff: Tariff, target_date: date, day_types: set[DayType]
+) -> tuple[list[dict], list[dict]]:
+    """
+    Extract applicable charge periods for a specific date.
+
+    Args:
+        tariff: The tariff DTO with energy and demand charges
+        target_date: The date to get periods for
+        day_types: Set of DayType values that apply to this date
+
+    Returns:
+        Tuple of (energy_periods, demand_periods) where each period is:
+        {
+            'name': str,
+            'start': 'HH:MM',
+            'end': 'HH:MM',
+            'color': str,
+        }
+    """
+    energy_periods = []
+    demand_periods = []
+
+    # Process energy charges
+    for i, charge in enumerate(tariff.energy_charges):
+        rule = charge.applicability
+        # Check if charge applies to this day type
+        if rule.day_types and not (rule.day_types & day_types):
+            continue
+
+        # Check date range if specified (normalized to month/day)
+        if rule.start_date or rule.end_date:
+            target_normalized = date(2000, target_date.month, target_date.day)
+            if rule.start_date:
+                start_normalized = date(2000, rule.start_date.month, rule.start_date.day)
+                if target_normalized < start_normalized:
+                    continue
+            if rule.end_date:
+                end_normalized = date(2000, rule.end_date.month, rule.end_date.day)
+                if target_normalized > end_normalized:
+                    continue
+
+        energy_periods.append({
+            "name": charge.name,
+            "start": _time_to_str(rule.period_start_local, "00:00"),
+            "end": _time_to_str(rule.period_end_local, "24:00"),
+            "color": CHARGE_COLORS[i % len(CHARGE_COLORS)],
+        })
+
+    # Process demand charges
+    for i, charge in enumerate(tariff.demand_charges):
+        rule = charge.applicability
+        # Check if charge applies to this day type
+        if rule.day_types and not (rule.day_types & day_types):
+            continue
+
+        # Check date range if specified
+        if rule.start_date or rule.end_date:
+            target_normalized = date(2000, target_date.month, target_date.day)
+            if rule.start_date:
+                start_normalized = date(2000, rule.start_date.month, rule.start_date.day)
+                if target_normalized < start_normalized:
+                    continue
+            if rule.end_date:
+                end_normalized = date(2000, rule.end_date.month, rule.end_date.day)
+                if target_normalized > end_normalized:
+                    continue
+
+        demand_periods.append({
+            "name": charge.name,
+            "start": _time_to_str(rule.period_start_local, "00:00"),
+            "end": _time_to_str(rule.period_end_local, "24:00"),
+            "color": CHARGE_COLORS[(i + 3) % len(CHARGE_COLORS)],  # Offset colors from energy
+        })
+
+    return energy_periods, demand_periods
+
+
+def _find_peak_demand_day(
+    df: pd.DataFrame, demand_charge_ids: list[str]
+) -> str | None:
+    """
+    Find the day with highest total demand charges.
+
+    Args:
+        df: DataFrame with date column and demand charge columns
+        demand_charge_ids: List of demand charge column IDs (UUIDs)
+
+    Returns:
+        ISO date string of the peak demand day, or None if no demand charges
+    """
+    if not demand_charge_ids:
+        return None
+
+    # Sum all demand charge columns per day
+    daily_demand = df.groupby("date")[demand_charge_ids].sum().sum(axis=1)
+
+    if daily_demand.empty or daily_demand.max() == 0:
+        return None
+
+    peak_day = daily_demand.idxmax()
+    return peak_day.isoformat()
 
 
 def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
@@ -136,6 +281,52 @@ def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
     for month_result in billing_result.billing_months[:-1]:  # Skip last one (no line after it)
         billing_period_ends.append(month_result.period_end.isoformat())
 
+    # Generate daily detail data for each date
+    # tariff_dto already computed above
+    available_dates = daily_dates  # Already computed above
+
+    # Find peak demand day
+    peak_demand_day = _find_peak_demand_day(df, demand_charge_ids)
+
+    # Build by_date dictionary with interval-level data for each day
+    by_date: dict[str, dict] = {}
+    for target_date_str in available_dates:
+        target_date = date.fromisoformat(target_date_str)
+
+        # Get intervals for this day
+        day_df = df[df["date"] == target_date].sort_values("interval_start")
+
+        if day_df.empty:
+            by_date[target_date_str] = {
+                "timestamps": [],
+                "kwh": [],
+                "kw": [],
+                "energy_periods": [],
+                "demand_periods": [],
+            }
+            continue
+
+        # Get day types for this date
+        day_types = _get_day_types_for_date(df, target_date)
+
+        # Get charge periods
+        energy_periods, demand_periods = _get_charge_periods(
+            tariff_dto, target_date, day_types
+        )
+
+        # Convert to JSON-serializable format
+        timestamps = [
+            ts.isoformat() for ts in day_df["interval_start"].dt.to_pydatetime()
+        ]
+
+        by_date[target_date_str] = {
+            "timestamps": timestamps,
+            "kwh": day_df["kwh"].tolist(),
+            "kw": day_df["kw"].tolist(),
+            "energy_periods": energy_periods,
+            "demand_periods": demand_periods,
+        }
+
     return {
         "months": months,
         "stacked_bar": {
@@ -161,5 +352,10 @@ def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
             "max_kw": daily_max_kw,
             "demand_charge_details": dict(demand_charge_details),
             "billing_period_ends": billing_period_ends,
+        },
+        "daily_detail": {
+            "available_dates": available_dates,
+            "peak_demand_day": peak_demand_day,
+            "by_date": by_date,
         },
     }
