@@ -16,7 +16,12 @@ import pandas as pd
 
 from billing.adapters import tariff_to_dto
 from billing.core.calculator import calculate_monthly_bills
-from billing.core.data import fill_missing_data, validate_usage_dataframe
+from billing.core.data import (
+    GapAnalysis,
+    analyze_gaps,
+    fill_missing_data,
+    validate_usage_dataframe,
+)
 from billing.core.types import BillingMonthResult
 from billing.exceptions import InvalidDateRangeError, NoUsageDataError
 from usage.models import CustomerUsage
@@ -39,6 +44,7 @@ class BillingCalculationResult:
     billing_months: list[BillingMonthResult]
     billing_df: pd.DataFrame
     warnings: list[str]
+    gap_analysis: GapAnalysis | None = None
 
     @property
     def grand_total_usd(self):
@@ -332,6 +338,10 @@ def calculate_customer_bill(
     # Add day type columns
     df = determine_day_types(df, utility, customer_tz)
 
+    # Analyze gaps before filling
+    expected_grain = timedelta(minutes=customer.billing_interval_minutes)
+    gap_analysis = analyze_gaps(df, expected_grain)
+
     # Fill gaps if requested
     if fill_gaps:
         original_len = len(df)
@@ -363,4 +373,5 @@ def calculate_customer_bill(
         billing_months=billing_months,
         billing_df=billing_df,
         warnings=warnings,
+        gap_analysis=gap_analysis,
     )

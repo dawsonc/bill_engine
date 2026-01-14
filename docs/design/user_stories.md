@@ -32,12 +32,14 @@ The analyst should do all of these tasks via the admin pane.
 
 ## Bill & customer usage analysis
 
-- [ ] As an analyst, I want to be able to estimate the total monthly bill for a customer in either a single month or in a range of months. The analysis should automatically fill in missing data for gaps (e.g. by using either the last known value or by linearly interpolating, based on my choice), and it should give a warning showing the total number of missing records in each month and the length of the longest gap. For each month, I want to generate:
+- [x] As an analyst, I want to be able to estimate the total monthly bill for a customer in either a single month or in a range of months. The analysis should automatically fill in missing data for gaps (e.g. by using either the last known value or by linearly interpolating, based on my choice), and it should give a warning showing the total number of missing records in each month and the length of the longest gap. For each month, I want to generate:
     - A tabular breakdown of charges
     - A stacked bar chart showing the different charges in each month
     - For both energy and demand charges, a line chart of the total energy/demand charge in each month (also show a line for each component charge).
 
 - [ ] As an analyst, I want to be able to plot a time series of customer usage for a specific day. There should be plots for both energy and peak demand. Each plot should overlay the periods in which different energy and demand charges apply. There should be the option to overlay temperature with energy usage.
+
+- [ ] As an analyst, I want to be able to plot a time series of customer usage for a specific billing month. There should be plots for both energy and peak demand (TODO how to aggregate demand for monthly view). There should be the option to overlay temperature with energy usage.
 
 - [ ] As an analyst, I want to be able to generate these daily plots for the day that contributed the most to monthly energy charges.
 

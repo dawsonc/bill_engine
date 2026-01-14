@@ -1,6 +1,15 @@
 {% extends "admin/change_form.html" %}
 {% load humanize %}
 
+{% block object-tools-items %}
+{{ block.super }}
+{% if original %}
+<li>
+  <a href="{% url 'admin:customers_customer_calculate_bill' original.pk %}">Calculate Bill</a>
+</li>
+{% endif %}
+{% endblock %}
+
 {% block after_field_sets %}
   {{ block.super }}
 

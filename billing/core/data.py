@@ -2,9 +2,124 @@
 Data validation and repair functionality for billing data
 """
 
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import timedelta
 from enum import Enum
 
 import pandas as pd
+
+
+@dataclass
+class GapAnalysis:
+    """Results of analyzing gaps in usage data."""
+
+    total_missing: int
+    longest_gap_intervals: int
+    longest_gap_duration: timedelta
+    missing_by_month: dict[str, int]  # "2024-01" -> count
+
+
+def analyze_gaps(
+    usage_df: pd.DataFrame,
+    expected_grain: timedelta,
+) -> GapAnalysis:
+    """
+    Analyze gaps in usage data before filling.
+
+    Args:
+        usage_df: DataFrame with interval_start and interval_end columns (tz-aware)
+        expected_grain: Expected interval duration (e.g., timedelta(minutes=5))
+
+    Returns:
+        GapAnalysis with total missing, longest gap, and missing by month
+    """
+    if usage_df.empty:
+        return GapAnalysis(
+            total_missing=0,
+            longest_gap_intervals=0,
+            longest_gap_duration=timedelta(0),
+            missing_by_month={},
+        )
+
+    df = usage_df.copy()
+    df["interval_start"] = pd.to_datetime(df["interval_start"])
+
+    # Work in UTC for consistent calculations
+    tz = df["interval_start"].dt.tz
+    if tz:
+        start_utc = df["interval_start"].dt.tz_convert("UTC")
+    else:
+        start_utc = df["interval_start"]
+
+    df = df.sort_values("interval_start")
+    start_utc = start_utc.sort_values()
+
+    # Calculate expected full range
+    min_time = start_utc.min()
+    max_time = start_utc.max()
+
+    # Calculate expected number of intervals
+    total_duration = max_time - min_time
+    expected_intervals = int(total_duration / expected_grain) + 1
+    actual_intervals = len(df)
+    total_missing = max(0, expected_intervals - actual_intervals)
+
+    if total_missing == 0:
+        return GapAnalysis(
+            total_missing=0,
+            longest_gap_intervals=0,
+            longest_gap_duration=timedelta(0),
+            missing_by_month={},
+        )
+
+    # Find gaps by looking at differences between consecutive intervals
+    start_diffs = start_utc.diff().dropna()
+    expected_grain_td = pd.Timedelta(expected_grain)
+
+    # Identify where gaps exist (diff > expected grain)
+    gap_mask = start_diffs > expected_grain_td
+    gaps = start_diffs[gap_mask]
+
+    # Calculate longest gap
+    if len(gaps) > 0:
+        longest_gap_td = gaps.max()
+        longest_gap_intervals = int(longest_gap_td / expected_grain_td) - 1
+        longest_gap_duration = timedelta(
+            seconds=longest_gap_td.total_seconds() - expected_grain.total_seconds()
+        )
+    else:
+        longest_gap_intervals = 0
+        longest_gap_duration = timedelta(0)
+
+    # Calculate missing by month
+    # Create full expected range
+    full_range = pd.date_range(
+        start=min_time,
+        end=max_time,
+        freq=expected_grain_td,
+        tz="UTC" if tz else None,
+    )
+
+    # Find missing timestamps
+    existing_set = set(start_utc.values)
+    missing_timestamps = [ts for ts in full_range if ts not in existing_set]
+
+    # Group by month
+    missing_by_month: dict[str, int] = defaultdict(int)
+    for ts in missing_timestamps:
+        month_key = pd.Timestamp(ts).strftime("%Y-%m")
+        missing_by_month[month_key] += 1
+
+    # Sort by month
+    missing_by_month = dict(sorted(missing_by_month.items()))
+
+    return GapAnalysis(
+        total_missing=total_missing,
+        longest_gap_intervals=longest_gap_intervals,
+        longest_gap_duration=longest_gap_duration,
+        missing_by_month=missing_by_month,
+    )
 
 
 class ImputationStrategy(str, Enum):

@@ -159,15 +159,19 @@ def _calculate_billing_month_result(
     )
 
     # Calculate total
-    total_usd = sum(
-        (item.amount_usd for item in energy_line_items),
-        start=Decimal("0"),
-    ) + sum(
-        (item.amount_usd for item in demand_line_items),
-        start=Decimal("0"),
-    ) + sum(
-        (item.amount_usd for item in customer_line_items),
-        start=Decimal("0"),
+    total_usd = (
+        sum(
+            (item.amount_usd for item in energy_line_items),
+            start=Decimal("0"),
+        )
+        + sum(
+            (item.amount_usd for item in demand_line_items),
+            start=Decimal("0"),
+        )
+        + sum(
+            (item.amount_usd for item in customer_line_items),
+            start=Decimal("0"),
+        )
     )
 
     return BillingMonthResult(
@@ -203,9 +207,6 @@ def calculate_monthly_bills(
         - List of BillingMonthResult objects (one per billing period)
         - Complete billing DataFrame with per-interval charges
     """
-    # Save original usage columns for filtering out charge columns later
-    usage_columns = usage.columns
-
     # Build mapping from charge_id to charge object for line item descriptions
     charge_map: dict[str, tuple] = {}
     for charge in charges.energy_charges:
@@ -236,6 +237,9 @@ def calculate_monthly_bills(
             usage["interval_start"].dt.date <= period_end
         )
         usage.loc[mask, "billing_period"] = period_str
+
+    # Save original usage columns for filtering out charge columns later
+    usage_columns = usage.columns
 
     # Apply all charges to get billing DataFrame
     billing_df = apply_charges(usage, charges)

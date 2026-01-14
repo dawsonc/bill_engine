@@ -3,22 +3,150 @@
 
 {% block extrahead %}
 {{ block.super }}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <style>
-  .billing-results { margin-top: 20px; }
-  .billing-month { margin-bottom: 30px; padding: 15px; background: #f9f9f9; border-radius: 4px; }
-  .billing-month h3 { margin-top: 0; color: #417690; }
-  .billing-month table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-  .billing-month th, .billing-month td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #ddd; }
-  .billing-month th { background: #f0f0f0; font-weight: bold; }
-  .billing-month .amount { text-align: right; font-family: monospace; }
-  .billing-month .total td { font-weight: bold; border-top: 2px solid #417690; background: #e8f4f8; }
-  .billing-month .charge-type { color: #666; font-size: 0.9em; }
-  .warnings { background: #fff3cd; border: 1px solid #ffc107; padding: 10px; margin-bottom: 15px; border-radius: 4px; }
-  .warnings ul { margin: 5px 0 0 20px; padding: 0; }
-  .error-message { background: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; margin-bottom: 15px; border-radius: 4px; color: #721c24; }
-  .summary-box { background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; margin-top: 20px; border-radius: 4px; }
-  .summary-box h3 { margin-top: 0; color: #155724; }
-  .grand-total { font-size: 1.5em; font-weight: bold; color: #155724; }
+  .billing-results {
+    margin-top: 20px;
+  }
+
+  .billing-month {
+    margin-bottom: 30px;
+    padding: 15px;
+    background: #f9f9f9;
+    border-radius: 4px;
+  }
+
+  .billing-month h3 {
+    margin-top: 0;
+    color: #417690;
+  }
+
+  .billing-month table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+
+  .billing-month th,
+  .billing-month td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .billing-month th {
+    background: #f0f0f0;
+    font-weight: bold;
+  }
+
+  .billing-month .amount {
+    text-align: right;
+    font-family: monospace;
+  }
+
+  .billing-month .total td {
+    font-weight: bold;
+    border-top: 2px solid #417690;
+    background: #e8f4f8;
+  }
+
+  .billing-month .charge-type {
+    color: #666;
+    font-size: 0.9em;
+  }
+
+  .warnings {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+  }
+
+  .warnings ul {
+    margin: 5px 0 0 20px;
+    padding: 0;
+  }
+
+  .error-message {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+    color: #721c24;
+  }
+
+  .summary-box {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    padding: 15px;
+    margin-top: 20px;
+    border-radius: 4px;
+  }
+
+  .summary-box h3 {
+    margin-top: 0;
+    color: #155724;
+  }
+
+  .grand-total {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #155724;
+  }
+
+  .gap-analysis-warning {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+  }
+
+  .gap-analysis-warning h3 {
+    margin-top: 0;
+    color: #856404;
+  }
+
+  .gap-analysis-warning table {
+    width: auto;
+    margin-top: 10px;
+  }
+
+  .gap-analysis-warning th,
+  .gap-analysis-warning td {
+    padding: 4px 12px;
+    border: 1px solid #ffc107;
+  }
+
+  .billing-charts {
+    margin-top: 30px;
+    max-width: 1400px;
+  }
+
+  .chart-container {
+    margin-bottom: 30px;
+    padding: 15px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+
+  .chart-container h3 {
+    margin-top: 0;
+    color: #417690;
+  }
+
+  .chart-container .js-plotly-plot {
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  .chart-container .plotly {
+    max-width: 100%;
+  }
 </style>
 {% endblock %}
 
@@ -88,6 +216,36 @@
     <strong>Tariff Used:</strong> {{ billing_result.tariff }}
   </p>
 
+  {% if billing_result.gap_analysis and billing_result.gap_analysis.total_missing > 0 %}
+  <div class="gap-analysis-warning">
+    <h3>Data Quality Warning</h3>
+    <p>
+      <strong>Total Missing Intervals:</strong> {{ billing_result.gap_analysis.total_missing }}<br>
+      <strong>Longest Gap:</strong> {{ billing_result.gap_analysis.longest_gap_intervals }} intervals
+      ({{ billing_result.gap_analysis.longest_gap_duration }})<br>
+      Missing data was filled using forward-fill (last known value).
+    </p>
+    {% if billing_result.gap_analysis.missing_by_month %}
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Missing Intervals</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for month, count in billing_result.gap_analysis.missing_by_month.items %}
+        <tr>
+          <td>{{ month }}</td>
+          <td>{{ count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {% if billing_result.warnings %}
   <div class="warnings">
     <strong>Warnings:</strong>
@@ -99,6 +257,28 @@
   </div>
   {% endif %}
 
+  {% if chart_data.months %}
+  <div class="billing-charts">
+    <h2>Billing Visualizations</h2>
+
+    <div class="chart-container">
+      <h3>Monthly Charges Breakdown</h3>
+      <div id="stacked-bar-chart" style="width: 100%; height: 700px;"></div>
+    </div>
+
+    <div class="chart-container">
+      <h3>Energy Charges Over Time</h3>
+      <div id="energy-line-chart" style="width: 100%; height: 600px;"></div>
+    </div>
+
+    <div class="chart-container">
+      <h3>Demand Charges Over Time</h3>
+      <div id="demand-line-chart" style="width: 100%; height: 600px;"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <h2>Monthly Breakdown</h2>
   {% for month in billing_result.billing_months %}
   <div class="billing-month">
     <h3>Billing Period: {{ month.period_start }} to {{ month.period_end }}</h3>
@@ -155,6 +335,153 @@
   </div>
   {% endif %}
 </div>
+
+{% if chart_data.months %}
+<script>
+  (function () {
+    const chartData = {{ chart_data_json | safe }};
+    if (!chartData.months || chartData.months.length === 0) return;
+
+  // Color palettes
+  const energyColors = ['#1f77b4', '#aec7e8', '#6baed6', '#3182bd', '#9ecae1'];
+  const demandColors = ['#ff7f0e', '#ffbb78', '#fd8d3c', '#e6550d', '#fdae6b'];
+  const customerColors = ['#2ca02c', '#98df8a', '#74c476', '#31a354', '#a1d99b'];
+
+  // 1. STACKED BAR CHART
+  const barTraces = [];
+  let colorIdx = 0;
+
+  // Energy charges
+  for (const [name, values] of Object.entries(chartData.stacked_bar.energy_charges)) {
+    barTraces.push({
+      x: chartData.months,
+      y: values,
+      name: name + ' (Energy)',
+      type: 'bar',
+      marker: { color: energyColors[colorIdx % energyColors.length] }
+    });
+    colorIdx++;
+  }
+
+  // Demand charges
+  colorIdx = 0;
+  for (const [name, values] of Object.entries(chartData.stacked_bar.demand_charges)) {
+    barTraces.push({
+      x: chartData.months,
+      y: values,
+      name: name + ' (Demand)',
+      type: 'bar',
+      marker: { color: demandColors[colorIdx % demandColors.length] }
+    });
+    colorIdx++;
+  }
+
+  // Customer charges
+  colorIdx = 0;
+  for (const [name, values] of Object.entries(chartData.stacked_bar.customer_charges)) {
+    barTraces.push({
+      x: chartData.months,
+      y: values,
+      name: name + ' (Customer)',
+      type: 'bar',
+      marker: { color: customerColors[colorIdx % customerColors.length] }
+    });
+    colorIdx++;
+  }
+
+  Plotly.newPlot('stacked-bar-chart', barTraces, {
+    barmode: 'stack',
+    autosize: true,
+    title: { text: 'Monthly Charges by Type', font: { size: 16 } },
+    xaxis: { title: 'Billing Month', automargin: true },
+    yaxis: { title: 'Amount ($)', tickprefix: '$', automargin: true },
+    legend: { orientation: 'h', y: -0.3, font: { size: 11 } },
+    margin: { l: 60, r: 20, t: 50, b: 120 },
+    hoverlabel: { namelength: -1, font: { size: 13 } },
+    hovermode: 'x unified'
+  }, { responsive: true, displaylogo: false });
+
+  // 2. ENERGY LINE CHART
+  const energyTraces = [];
+  if (chartData.energy_line.total.some(v => v > 0)) {
+    energyTraces.push({
+      x: chartData.months,
+      y: chartData.energy_line.total,
+      name: 'Total Energy',
+      mode: 'lines+markers',
+      line: { width: 3, color: '#1f77b4' },
+      marker: { size: 8 }
+    });
+
+    colorIdx = 1;
+    for (const [name, values] of Object.entries(chartData.energy_line.components)) {
+      energyTraces.push({
+        x: chartData.months,
+        y: values,
+        name: name,
+        mode: 'lines+markers',
+        line: { width: 1, dash: 'dot', color: energyColors[colorIdx % energyColors.length] },
+        marker: { size: 5 }
+      });
+      colorIdx++;
+    }
+
+    Plotly.newPlot('energy-line-chart', energyTraces, {
+      autosize: true,
+      title: { text: 'Energy Charges by Month', font: { size: 16 } },
+      xaxis: { title: 'Billing Month', automargin: true },
+      yaxis: { title: 'Amount ($)', tickprefix: '$', automargin: true },
+      legend: { orientation: 'h', y: -0.3, font: { size: 11 } },
+      margin: { l: 60, r: 20, t: 50, b: 100 },
+      hoverlabel: { namelength: -1, font: { size: 13 } },
+      hovermode: 'x unified'
+    }, { responsive: true, displaylogo: false });
+  } else {
+    document.getElementById('energy-line-chart').innerHTML = '<p style="text-align: center; color: #666;">No energy charges in this period.</p>';
+  }
+
+  // 3. DEMAND LINE CHART
+  const demandTraces = [];
+  if (chartData.demand_line.total.some(v => v > 0)) {
+    demandTraces.push({
+      x: chartData.months,
+      y: chartData.demand_line.total,
+      name: 'Total Demand',
+      mode: 'lines+markers',
+      line: { width: 3, color: '#ff7f0e' },
+      marker: { size: 8 }
+    });
+
+    colorIdx = 1;
+    for (const [name, values] of Object.entries(chartData.demand_line.components)) {
+      demandTraces.push({
+        x: chartData.months,
+        y: values,
+        name: name,
+        mode: 'lines+markers',
+        line: { width: 1, dash: 'dot', color: demandColors[colorIdx % demandColors.length] },
+        marker: { size: 5 }
+      });
+      colorIdx++;
+    }
+
+    Plotly.newPlot('demand-line-chart', demandTraces, {
+      autosize: true,
+      title: { text: 'Demand Charges by Month', font: { size: 16 } },
+      xaxis: { title: 'Billing Month', automargin: true },
+      yaxis: { title: 'Amount ($)', tickprefix: '$', automargin: true },
+      legend: { orientation: 'h', y: -0.3, font: { size: 11 } },
+      margin: { l: 60, r: 20, t: 50, b: 100 },
+      hoverlabel: { namelength: -1, font: { size: 13 } },
+      hovermode: 'x unified'
+    }, { responsive: true, displaylogo: false });
+  } else {
+    document.getElementById('demand-line-chart').innerHTML = '<p style="text-align: center; color: #666;">No demand charges in this period.</p>';
+  }
+}) ();
+</script>
+{% endif %}
+
 {% endif %}
 
 {% endblock %}

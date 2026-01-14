@@ -6,6 +6,7 @@ from django.http import HttpResponse
 from django.shortcuts import render
 from django.urls import path
 
+from billing.chart_data import get_billing_chart_data
 from billing.exceptions import BillingServiceError
 from billing.forms import BillingMonthRangeForm
 from billing.services import calculate_customer_bill, get_billing_period_for_month
@@ -182,12 +183,22 @@ class CustomerAdmin(admin.ModelAdmin):
         else:
             form = BillingMonthRangeForm(customer=customer)
 
+        # Generate chart data if we have billing results
+        if billing_result:
+            chart_data = get_billing_chart_data(billing_result)
+            chart_data_json = json.dumps(chart_data)
+        else:
+            chart_data = {"months": []}
+            chart_data_json = json.dumps(chart_data)
+
         context = {
             **self.admin_site.each_context(request),
             "customer": customer,
             "form": form,
             "billing_result": billing_result,
             "error_message": error_message,
+            "chart_data": chart_data,
+            "chart_data_json": chart_data_json,
             "opts": self.model._meta,
             "title": f"Calculate Bill - {customer.name}",
         }
