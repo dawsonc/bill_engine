@@ -352,11 +352,13 @@ def calculate_customer_bill(
     # Validate the prepared dataframe
     validate_usage_dataframe(df)
 
-    # Convert tariff to DTO (with prefetched charges)
+    # Convert tariff to DTO (with prefetched charges and applicability rules)
     from tariffs.models import Tariff as TariffModel
 
     tariff_with_charges = TariffModel.objects.prefetch_related(
-        "energy_charges", "demand_charges", "customer_charges"
+        "energy_charges__applicability_rules",
+        "demand_charges__applicability_rules",
+        "customer_charges",
     ).get(pk=tariff.pk)
     tariff_dto = tariff_to_dto(tariff_with_charges)
 

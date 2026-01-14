@@ -3,9 +3,13 @@
 # This file demonstrates the structure for uploading tariffs with all charge types.
 # Copy and modify this template for your utility's tariffs.
 #
+# YAML Structure:
+#   1. applicability_rules: Define reusable time/date/day type rules
+#   2. tariffs: Define tariffs with charges that reference rules by name
+#
 # Field Requirements:
 # - Times: HH:MM format (e.g., "12:00" for noon)
-# - Dates: YYYY-MM-DD format or null for year-round charges
+# - Dates: YYYY-MM-DD format or null for year-round
 # - Decimals: Energy rates have up to 5 decimal places, others have 2
 # - Booleans: true/false for applies_* fields (defaults to true if omitted)
 #
@@ -14,6 +18,37 @@
 # - Applicable end date must be on or after start date (when both provided)
 # - Utility must exist in database
 # - Peak type must be "daily" or "monthly"
+# - Rule names referenced by charges must be defined in applicability_rules section
+
+# Reusable applicability rules (define once, use across multiple charges)
+applicability_rules:
+  # Summer peak hours rule - used by energy and demand charges
+  - name: "Summer Peak Hours"
+    period_start_time_local: "12:00"  # Start time (inclusive)
+    period_end_time_local: "18:00"    # End time (exclusive of next minute)
+    applies_start_date: "2024-06-01"  # First applicable date (or null)
+    applies_end_date: "2024-09-30"    # Last applicable date (or null)
+    applies_weekdays: true   # Monday-Friday
+    applies_weekends: false  # Saturday-Sunday
+    applies_holidays: false  # Utility-defined holidays
+
+  # Summer off-peak hours
+  - name: "Summer Off-Peak Hours"
+    period_start_time_local: "00:00"
+    period_end_time_local: "12:00"
+    applies_start_date: "2024-06-01"
+    applies_end_date: "2024-09-30"
+    # Omitted boolean fields default to true
+
+  # Year-round rule with no restrictions
+  - name: "Year-Round All Hours"
+    period_start_time_local: "00:00"
+    period_end_time_local: "23:59"
+    applies_start_date: null  # null means year-round
+    applies_end_date: null
+    applies_weekdays: true
+    applies_weekends: true
+    applies_holidays: true
 
 tariffs:
   # First tariff example with all charge types
@@ -24,34 +59,18 @@ tariffs:
     energy_charges:
       - name: "Summer Peak Energy"
         rate_usd_per_kwh: 0.15432  # Up to 5 decimal places
-        period_start_time_local: "12:00"  # Start time (inclusive)
-        period_end_time_local: "18:00"    # End time (exclusive of next minute)
-        applies_start_date: "2024-06-01"  # First applicable date (or null)
-        applies_end_date: "2024-09-30"    # Last applicable date (or null)
-        applies_weekdays: true   # Monday-Friday
-        applies_weekends: false  # Saturday-Sunday
-        applies_holidays: false  # Utility-defined holidays
+        applicability_rules: ["Summer Peak Hours"]  # Reference rule by name
 
       - name: "Summer Off-Peak Energy"
         rate_usd_per_kwh: 0.09876
-        period_start_time_local: "00:00"
-        period_end_time_local: "12:00"
-        applies_start_date: "2024-06-01"
-        applies_end_date: "2024-09-30"
-        # Omitted boolean fields default to true
+        applicability_rules: ["Summer Off-Peak Hours"]
 
     # Demand charges ($/kW based on peak demand)
     demand_charges:
       - name: "Summer Peak Demand"
         rate_usd_per_kw: 18.50  # Up to 2 decimal places
-        period_start_time_local: "12:00"
-        period_end_time_local: "18:00"
         peak_type: "monthly"  # "daily" or "monthly"
-        applies_start_date: "2024-06-01"
-        applies_end_date: "2024-09-30"
-        applies_weekdays: true
-        applies_weekends: false
-        applies_holidays: false
+        applicability_rules: ["Summer Peak Hours"]
 
     # Customer charges (fixed fees, daily or monthly)
     customer_charges:
@@ -69,13 +88,7 @@ tariffs:
     energy_charges:
       - name: "Year-Round Energy"
         rate_usd_per_kwh: 0.12345
-        period_start_time_local: "00:00"
-        period_end_time_local: "23:59"
-        applies_start_date: null  # null means year-round
-        applies_end_date: null
-        applies_weekdays: true
-        applies_weekends: true
-        applies_holidays: true
+        applicability_rules: ["Year-Round All Hours"]
 
     # Empty arrays are allowed
     demand_charges: []

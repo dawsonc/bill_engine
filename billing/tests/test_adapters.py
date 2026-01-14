@@ -10,7 +10,7 @@ from decimal import Decimal
 import pytest
 
 from billing.adapters import (
-    build_applicability_rule,
+    applicability_rule_to_dto,
     build_day_types,
     customer_charge_to_dto,
     demand_charge_to_dto,
@@ -20,7 +20,13 @@ from billing.adapters import (
     tariffs_to_dtos,
 )
 from billing.core.types import DayType, PeakType
-from tariffs.models import CustomerCharge, DemandCharge, EnergyCharge, Tariff
+from tariffs.models import (
+    ApplicabilityRule,
+    CustomerCharge,
+    DemandCharge,
+    EnergyCharge,
+    Tariff,
+)
 
 # ChargeId Generation Tests
 
@@ -71,9 +77,11 @@ def test_build_day_types(weekdays, weekends, holidays, expected):
 # ApplicabilityRule Construction Tests
 
 
+@pytest.mark.django_db
 def test_full_applicability_rule():
-    """Test creating ApplicabilityRule with all fields."""
-    rule = build_applicability_rule(
+    """Test converting ApplicabilityRule model with all fields to DTO."""
+    orm_rule = ApplicabilityRule.objects.create(
+        name="Summer Peak Hours",
         period_start_time_local=time(8, 0),
         period_end_time_local=time(17, 0),
         applies_start_date=date(2024, 6, 1),
@@ -83,6 +91,8 @@ def test_full_applicability_rule():
         applies_holidays=False,
     )
 
+    rule = applicability_rule_to_dto(orm_rule)
+
     assert rule.period_start_local == time(8, 0)
     assert rule.period_end_local == time(17, 0)
     assert rule.start_date == date(2024, 6, 1)
@@ -90,9 +100,11 @@ def test_full_applicability_rule():
     assert rule.day_types == frozenset({DayType.WEEKDAY})
 
 
+@pytest.mark.django_db
 def test_applicability_rule_with_nulls():
-    """Test ApplicabilityRule with None dates (year-round)."""
-    rule = build_applicability_rule(
+    """Test ApplicabilityRule DTO with None dates (year-round)."""
+    orm_rule = ApplicabilityRule.objects.create(
+        name="Year-Round All Days",
         period_start_time_local=time(0, 0),
         period_end_time_local=time(23, 59),
         applies_start_date=None,
@@ -101,6 +113,8 @@ def test_applicability_rule_with_nulls():
         applies_weekends=True,
         applies_holidays=True,
     )
+
+    rule = applicability_rule_to_dto(orm_rule)
 
     assert rule.start_date is None
     assert rule.end_date is None
@@ -112,10 +126,9 @@ def test_applicability_rule_with_nulls():
 
 def test_energy_charge_conversion(tariff):
     """Test converting EnergyCharge model to DTO."""
-    charge = EnergyCharge.objects.create(
-        tariff=tariff,
-        name="Peak Energy",
-        rate_usd_per_kwh=Decimal("0.25"),
+    # Create applicability rule first
+    rule = ApplicabilityRule.objects.create(
+        name="Peak Hours",
         period_start_time_local=time(12, 0),
         period_end_time_local=time(18, 0),
         applies_weekdays=True,
@@ -123,27 +136,87 @@ def test_energy_charge_conversion(tariff):
         applies_holidays=False,
     )
 
+    charge = EnergyCharge.objects.create(
+        tariff=tariff,
+        name="Peak Energy",
+        rate_usd_per_kwh=Decimal("0.25"),
+    )
+    charge.applicability_rules.add(rule)
+
     dto = energy_charge_to_dto(charge)
 
     assert dto.name == "Peak Energy"
     assert dto.rate_usd_per_kwh == Decimal("0.25")
-    assert dto.applicability.period_start_local == time(12, 0)
-    assert dto.applicability.period_end_local == time(18, 0)
-    assert dto.applicability.day_types == frozenset({DayType.WEEKDAY})
+    assert len(dto.applicability_rules) == 1
+    assert dto.applicability_rules[0].period_start_local == time(12, 0)
+    assert dto.applicability_rules[0].period_end_local == time(18, 0)
+    assert dto.applicability_rules[0].day_types == frozenset({DayType.WEEKDAY})
+
+
+def test_energy_charge_with_multiple_rules(tariff):
+    """Test converting EnergyCharge with multiple applicability rules."""
+    rule1 = ApplicabilityRule.objects.create(
+        name="Morning Peak",
+        period_start_time_local=time(8, 0),
+        period_end_time_local=time(12, 0),
+        applies_weekdays=True,
+        applies_weekends=False,
+        applies_holidays=False,
+    )
+    rule2 = ApplicabilityRule.objects.create(
+        name="Evening Peak",
+        period_start_time_local=time(17, 0),
+        period_end_time_local=time(21, 0),
+        applies_weekdays=True,
+        applies_weekends=False,
+        applies_holidays=False,
+    )
+
+    charge = EnergyCharge.objects.create(
+        tariff=tariff,
+        name="Peak Energy",
+        rate_usd_per_kwh=Decimal("0.30"),
+    )
+    charge.applicability_rules.add(rule1, rule2)
+
+    dto = energy_charge_to_dto(charge)
+
+    assert dto.name == "Peak Energy"
+    assert len(dto.applicability_rules) == 2
+
+
+def test_energy_charge_with_no_rules(tariff):
+    """Test converting EnergyCharge with no applicability rules (applies everywhere)."""
+    charge = EnergyCharge.objects.create(
+        tariff=tariff,
+        name="Base Energy",
+        rate_usd_per_kwh=Decimal("0.08"),
+    )
+    # No rules added
+
+    dto = energy_charge_to_dto(charge)
+
+    assert dto.name == "Base Energy"
+    assert len(dto.applicability_rules) == 0
 
 
 def test_energy_charge_id_stability(tariff):
     """ChargeId should be stable across multiple conversions."""
-    charge = EnergyCharge.objects.create(
-        tariff=tariff,
-        name="Off Peak",
-        rate_usd_per_kwh=Decimal("0.10"),
+    rule = ApplicabilityRule.objects.create(
+        name="All Hours",
         period_start_time_local=time(0, 0),
         period_end_time_local=time(23, 59),
         applies_weekdays=True,
         applies_weekends=True,
         applies_holidays=True,
     )
+
+    charge = EnergyCharge.objects.create(
+        tariff=tariff,
+        name="Off Peak",
+        rate_usd_per_kwh=Decimal("0.10"),
+    )
+    charge.applicability_rules.add(rule)
 
     dto1 = energy_charge_to_dto(charge)
     dto2 = energy_charge_to_dto(charge)
@@ -163,11 +236,8 @@ def test_energy_charge_id_stability(tariff):
 )
 def test_demand_charge_conversion(tariff, peak_type, expected_enum):
     """Test converting DemandCharge to DTO for different peak types."""
-    charge = DemandCharge.objects.create(
-        tariff=tariff,
-        name=f"{peak_type.title()} Demand",
-        rate_usd_per_kw=Decimal("15.00"),
-        peak_type=peak_type,
+    rule = ApplicabilityRule.objects.create(
+        name="All Hours",
         period_start_time_local=time(0, 0),
         period_end_time_local=time(23, 59),
         applies_weekdays=True,
@@ -175,11 +245,20 @@ def test_demand_charge_conversion(tariff, peak_type, expected_enum):
         applies_holidays=True,
     )
 
+    charge = DemandCharge.objects.create(
+        tariff=tariff,
+        name=f"{peak_type.title()} Demand",
+        rate_usd_per_kw=Decimal("15.00"),
+        peak_type=peak_type,
+    )
+    charge.applicability_rules.add(rule)
+
     dto = demand_charge_to_dto(charge)
 
     assert dto.name == f"{peak_type.title()} Demand"
     assert dto.rate_usd_per_kw == Decimal("15.00")
     assert dto.type == expected_enum
+    assert len(dto.applicability_rules) == 1
 
 
 def test_demand_charge_invalid_peak_type_raises_error(tariff):
@@ -188,12 +267,7 @@ def test_demand_charge_invalid_peak_type_raises_error(tariff):
         tariff=tariff,
         name="Invalid Demand",
         rate_usd_per_kw=Decimal("10.00"),
-        peak_type="invalid",  # Will bypass Django validation in tests
-        period_start_time_local=time(0, 0),
-        period_end_time_local=time(23, 59),
-        applies_weekdays=True,
-        applies_weekends=True,
-        applies_holidays=True,
+        peak_type="monthly",  # Valid for creation
     )
 
     # Manually set invalid value to test adapter error handling
@@ -251,21 +325,11 @@ def test_tariff_to_dto_counts(utility):
         tariff=tariff,
         name="Off Peak",
         rate_usd_per_kwh=Decimal("0.10"),
-        period_start_time_local=time(0, 0),
-        period_end_time_local=time(12, 0),
-        applies_weekdays=True,
-        applies_weekends=True,
-        applies_holidays=True,
     )
     EnergyCharge.objects.create(
         tariff=tariff,
         name="On Peak",
         rate_usd_per_kwh=Decimal("0.20"),
-        period_start_time_local=time(12, 0),
-        period_end_time_local=time(18, 0),
-        applies_weekdays=True,
-        applies_weekends=False,
-        applies_holidays=False,
     )
 
     DemandCharge.objects.create(
@@ -273,17 +337,14 @@ def test_tariff_to_dto_counts(utility):
         name="Demand",
         rate_usd_per_kw=Decimal("10.00"),
         peak_type="monthly",
-        period_start_time_local=time(0, 0),
-        period_end_time_local=time(23, 59),
-        applies_weekdays=True,
-        applies_weekends=True,
-        applies_holidays=True,
     )
 
     CustomerCharge.objects.create(tariff=tariff, name="Service Fee", amount_usd=Decimal("20.00"))
 
     tariff = Tariff.objects.prefetch_related(
-        "energy_charges", "demand_charges", "customer_charges"
+        "energy_charges__applicability_rules",
+        "demand_charges__applicability_rules",
+        "customer_charges",
     ).get(pk=tariff.pk)
 
     tariff_dto = tariff_to_dto(tariff)
@@ -301,15 +362,12 @@ def test_tariff_to_dto_immutability(utility):
         tariff=tariff,
         name="Test Charge",
         rate_usd_per_kwh=Decimal("0.15"),
-        period_start_time_local=time(0, 0),
-        period_end_time_local=time(23, 59),
-        applies_weekdays=True,
-        applies_weekends=True,
-        applies_holidays=True,
     )
 
     tariff = Tariff.objects.prefetch_related(
-        "energy_charges", "demand_charges", "customer_charges"
+        "energy_charges__applicability_rules",
+        "demand_charges__applicability_rules",
+        "customer_charges",
     ).get(pk=tariff.pk)
 
     tariff_dto = tariff_to_dto(tariff)
@@ -340,11 +398,6 @@ def test_batch_conversion(utility):
         tariff=tariff1,
         name="Energy 1",
         rate_usd_per_kwh=Decimal("0.15"),
-        period_start_time_local=time(0, 0),
-        period_end_time_local=time(23, 59),
-        applies_weekdays=True,
-        applies_weekends=True,
-        applies_holidays=True,
     )
 
     tariff2 = Tariff.objects.create(utility=utility, name="Tariff 2")
@@ -353,11 +406,6 @@ def test_batch_conversion(utility):
         name="Demand 2",
         rate_usd_per_kw=Decimal("12.00"),
         peak_type="monthly",
-        period_start_time_local=time(0, 0),
-        period_end_time_local=time(23, 59),
-        applies_weekdays=True,
-        applies_weekends=True,
-        applies_holidays=True,
     )
 
     queryset = Tariff.objects.all()

@@ -5,8 +5,6 @@ This module provides lightweight mappings from the tariffs app's Django models
 to the immutable dataclasses used by the billing engine core.
 """
 
-from datetime import date, time
-from typing import Optional
 from uuid import UUID, uuid5
 
 from billing.core.types import (
@@ -19,6 +17,9 @@ from billing.core.types import (
     EnergyCharge,
     PeakType,
     Tariff,
+)
+from tariffs.models import (
+    ApplicabilityRule as ApplicabilityRuleModel,
 )
 from tariffs.models import (
     CustomerCharge as CustomerChargeModel,
@@ -101,30 +102,12 @@ def build_day_types(
     return frozenset(day_types)
 
 
-def build_applicability_rule(
-    period_start_time_local: time,
-    period_end_time_local: time,
-    applies_start_date: Optional[date],
-    applies_end_date: Optional[date],
-    applies_weekdays: bool,
-    applies_weekends: bool,
-    applies_holidays: bool,
-) -> ApplicabilityRule:
+def applicability_rule_to_dto(rule: ApplicabilityRuleModel) -> ApplicabilityRule:
     """
-    Build an ApplicabilityRule from Django model's flat fields.
-
-    This function aggregates the time-of-day, date range, and day type
-    constraints from the Django model's normalized structure into the
-    DTO's composite ApplicabilityRule.
+    Convert a Django ApplicabilityRule model to an ApplicabilityRule DTO.
 
     Args:
-        period_start_time_local: Start time of daily period (inclusive)
-        period_end_time_local: End time of daily period (exclusive)
-        applies_start_date: First applicable date (inclusive), None for year-round
-        applies_end_date: Last applicable date (inclusive), None for year-round
-        applies_weekdays: Whether charge applies on weekdays
-        applies_weekends: Whether charge applies on weekends
-        applies_holidays: Whether charge applies on holidays
+        rule: Django ApplicabilityRule model instance
 
     Returns:
         ApplicabilityRule DTO with all constraints properly configured
@@ -132,15 +115,32 @@ def build_applicability_rule(
     Raises:
         ValueError: If the ApplicabilityRule's post_init validation fails
     """
-    day_types = build_day_types(applies_weekdays, applies_weekends, applies_holidays)
+    day_types = build_day_types(
+        rule.applies_weekdays,
+        rule.applies_weekends,
+        rule.applies_holidays,
+    )
 
     return ApplicabilityRule(
-        period_start_local=period_start_time_local,
-        period_end_local=period_end_time_local,
-        start_date=applies_start_date,
-        end_date=applies_end_date,
+        period_start_local=rule.period_start_time_local,
+        period_end_local=rule.period_end_time_local,
+        start_date=rule.applies_start_date,
+        end_date=rule.applies_end_date,
         day_types=day_types,
     )
+
+
+def applicability_rules_to_dtos(rules) -> tuple[ApplicabilityRule, ...]:
+    """
+    Convert a collection of Django ApplicabilityRule models to DTOs.
+
+    Args:
+        rules: QuerySet or iterable of ApplicabilityRule model instances
+
+    Returns:
+        Tuple of ApplicabilityRule DTOs
+    """
+    return tuple(applicability_rule_to_dto(rule) for rule in rules)
 
 
 def energy_charge_to_dto(charge: EnergyChargeModel) -> EnergyCharge:
@@ -148,27 +148,20 @@ def energy_charge_to_dto(charge: EnergyChargeModel) -> EnergyCharge:
     Convert Django EnergyCharge model to EnergyCharge DTO.
 
     Args:
-        charge: Django EnergyCharge model instance
+        charge: Django EnergyCharge model instance (preferably with
+            prefetched applicability_rules)
 
     Returns:
         EnergyCharge DTO with deterministic ChargeId
     """
     charge_id = generate_charge_id("EnergyCharge", charge.pk)
-    applicability = build_applicability_rule(
-        period_start_time_local=charge.period_start_time_local,
-        period_end_time_local=charge.period_end_time_local,
-        applies_start_date=charge.applies_start_date,
-        applies_end_date=charge.applies_end_date,
-        applies_weekdays=charge.applies_weekdays,
-        applies_weekends=charge.applies_weekends,
-        applies_holidays=charge.applies_holidays,
-    )
+    applicability_rules = applicability_rules_to_dtos(charge.applicability_rules.all())
 
     return EnergyCharge(
         name=charge.name,
         rate_usd_per_kwh=charge.rate_usd_per_kwh,
         charge_id=charge_id,
-        applicability=applicability,
+        applicability_rules=applicability_rules,
     )
 
 
@@ -177,7 +170,8 @@ def demand_charge_to_dto(charge: DemandChargeModel) -> DemandCharge:
     Convert Django DemandCharge model to DemandCharge DTO.
 
     Args:
-        charge: Django DemandCharge model instance
+        charge: Django DemandCharge model instance (preferably with
+            prefetched applicability_rules)
 
     Returns:
         DemandCharge DTO with deterministic ChargeId
@@ -186,15 +180,7 @@ def demand_charge_to_dto(charge: DemandChargeModel) -> DemandCharge:
         ValueError: If peak_type has an invalid value
     """
     charge_id = generate_charge_id("DemandCharge", charge.pk)
-    applicability = build_applicability_rule(
-        period_start_time_local=charge.period_start_time_local,
-        period_end_time_local=charge.period_end_time_local,
-        applies_start_date=charge.applies_start_date,
-        applies_end_date=charge.applies_end_date,
-        applies_weekdays=charge.applies_weekdays,
-        applies_weekends=charge.applies_weekends,
-        applies_holidays=charge.applies_holidays,
-    )
+    applicability_rules = applicability_rules_to_dtos(charge.applicability_rules.all())
 
     # Map Django's string choice field to PeakType enum
     if charge.peak_type == "daily":
@@ -209,7 +195,7 @@ def demand_charge_to_dto(charge: DemandChargeModel) -> DemandCharge:
         rate_usd_per_kw=charge.rate_usd_per_kw,
         type=peak_type,
         charge_id=charge_id,
-        applicability=applicability,
+        applicability_rules=applicability_rules,
     )
 
 
@@ -255,15 +241,16 @@ def tariff_to_dto(tariff: TariffModel) -> Tariff:
 
     IMPORTANT: For performance, the tariff should be prefetched with:
         tariff = Tariff.objects.prefetch_related(
-            'energy_charges',
-            'demand_charges',
+            'energy_charges__applicability_rules',
+            'demand_charges__applicability_rules',
             'customer_charges'
         ).get(pk=tariff_id)
 
     Without prefetching, this function will trigger N+1 queries.
 
     Args:
-        tariff: Django Tariff model instance (preferably with prefetched charges)
+        tariff: Django Tariff model instance (preferably with prefetched charges
+            and their applicability_rules)
 
     Returns:
         Tariff DTO containing tuples of all charge DTOs
@@ -271,7 +258,9 @@ def tariff_to_dto(tariff: TariffModel) -> Tariff:
     Examples:
         >>> from tariffs.models import Tariff
         >>> tariff = Tariff.objects.prefetch_related(
-        ...     'energy_charges', 'demand_charges', 'customer_charges'
+        ...     'energy_charges__applicability_rules',
+        ...     'demand_charges__applicability_rules',
+        ...     'customer_charges'
         ... ).get(pk=1)
         >>> tariff_dto = tariff_to_dto(tariff)
         >>> len(tariff_dto.energy_charges)
@@ -314,10 +303,10 @@ def tariffs_to_dtos(tariffs_queryset) -> dict[int, Tariff]:
         >>> tariff_dtos[1].energy_charges
         (EnergyCharge(...), EnergyCharge(...))
     """
-    # Optimize query with single prefetch for all related charges
+    # Optimize query with single prefetch for all related charges and their rules
     tariffs = tariffs_queryset.prefetch_related(
-        "energy_charges",
-        "demand_charges",
+        "energy_charges__applicability_rules",
+        "demand_charges__applicability_rules",
         "customer_charges",
     )
 

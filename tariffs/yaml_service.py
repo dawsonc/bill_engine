@@ -3,6 +3,34 @@ YAML import/export service for tariffs.
 
 Provides bulk import and export functionality for tariffs with all charge types.
 Validation matches web interface validation.
+
+YAML Format:
+    applicability_rules:
+      - name: "Summer Peak Hours"
+        period_start_time_local: "12:00"
+        period_end_time_local: "18:00"
+        applies_start_date: "2000-06-01"
+        applies_end_date: "2000-09-30"
+        applies_weekdays: true
+        applies_weekends: false
+        applies_holidays: false
+
+    tariffs:
+      - name: "B-19 Secondary"
+        utility: "PG&E"
+        energy_charges:
+          - name: "Summer Peak Energy"
+            rate_usd_per_kwh: 0.15432
+            applicability_rules: ["Summer Peak Hours"]
+        demand_charges:
+          - name: "Peak Demand"
+            rate_usd_per_kw: 25.00
+            peak_type: "monthly"
+            applicability_rules: ["Summer Peak Hours"]
+        customer_charges:
+          - name: "Customer Charge"
+            amount_usd: 25.00
+            charge_type: "monthly"
 """
 
 import datetime
@@ -13,7 +41,7 @@ import yaml
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
-from tariffs.models import CustomerCharge, DemandCharge, EnergyCharge, Tariff
+from tariffs.models import ApplicabilityRule, CustomerCharge, DemandCharge, EnergyCharge, Tariff
 from utilities.models import Utility
 
 
@@ -28,7 +56,10 @@ class TariffYAMLExporter:
             tariffs_queryset: Django queryset of Tariff objects to export
         """
         self.tariffs = tariffs_queryset.prefetch_related(
-            "energy_charges", "demand_charges", "customer_charges", "utility"
+            "energy_charges__applicability_rules",
+            "demand_charges__applicability_rules",
+            "customer_charges",
+            "utility",
         )
 
     def export_to_yaml(self) -> str:
@@ -45,8 +76,41 @@ class TariffYAMLExporter:
 
         yaml.add_representer(Decimal, decimal_representer)
 
-        data = {"tariffs": [self._serialize_tariff(t) for t in self.tariffs]}
+        # Collect all unique rules used by any charge
+        all_rules: set[ApplicabilityRule] = set()
+        for tariff in self.tariffs:
+            for charge in tariff.energy_charges.all():
+                all_rules.update(charge.applicability_rules.all())
+            for charge in tariff.demand_charges.all():
+                all_rules.update(charge.applicability_rules.all())
+
+        data = {
+            "applicability_rules": [
+                self._serialize_applicability_rule(rule)
+                for rule in sorted(all_rules, key=lambda r: r.name)
+            ],
+            "tariffs": [self._serialize_tariff(t) for t in self.tariffs],
+        }
         return yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
+    def _serialize_applicability_rule(self, rule: ApplicabilityRule) -> dict:
+        """Convert applicability rule instance to dictionary."""
+        result = {"name": rule.name}
+
+        if rule.period_start_time_local:
+            result["period_start_time_local"] = rule.period_start_time_local.strftime("%H:%M")
+        if rule.period_end_time_local:
+            result["period_end_time_local"] = rule.period_end_time_local.strftime("%H:%M")
+
+        # Always include date fields (null means year-round)
+        result["applies_start_date"] = self._normalize_date_to_year_2000(rule.applies_start_date)
+        result["applies_end_date"] = self._normalize_date_to_year_2000(rule.applies_end_date)
+
+        result["applies_weekdays"] = rule.applies_weekdays
+        result["applies_weekends"] = rule.applies_weekends
+        result["applies_holidays"] = rule.applies_holidays
+
+        return result
 
     def _serialize_tariff(self, tariff: Tariff) -> dict:
         """Convert tariff instance to dictionary."""
@@ -69,13 +133,7 @@ class TariffYAMLExporter:
         return {
             "name": charge.name,
             "rate_usd_per_kwh": charge.rate_usd_per_kwh,
-            "period_start_time_local": charge.period_start_time_local.strftime("%H:%M"),
-            "period_end_time_local": charge.period_end_time_local.strftime("%H:%M"),
-            "applies_start_date": self._normalize_date_to_year_2000(charge.applies_start_date),
-            "applies_end_date": self._normalize_date_to_year_2000(charge.applies_end_date),
-            "applies_weekdays": charge.applies_weekdays,
-            "applies_weekends": charge.applies_weekends,
-            "applies_holidays": charge.applies_holidays,
+            "applicability_rules": [rule.name for rule in charge.applicability_rules.all()],
         }
 
     def _serialize_demand_charge(self, charge: DemandCharge) -> dict:
@@ -83,14 +141,8 @@ class TariffYAMLExporter:
         return {
             "name": charge.name,
             "rate_usd_per_kw": charge.rate_usd_per_kw,
-            "period_start_time_local": charge.period_start_time_local.strftime("%H:%M"),
-            "period_end_time_local": charge.period_end_time_local.strftime("%H:%M"),
             "peak_type": charge.peak_type,
-            "applies_start_date": self._normalize_date_to_year_2000(charge.applies_start_date),
-            "applies_end_date": self._normalize_date_to_year_2000(charge.applies_end_date),
-            "applies_weekdays": charge.applies_weekdays,
-            "applies_weekends": charge.applies_weekends,
-            "applies_holidays": charge.applies_holidays,
+            "applicability_rules": [rule.name for rule in charge.applicability_rules.all()],
         }
 
     def _serialize_customer_charge(self, charge: CustomerCharge) -> dict:
@@ -128,6 +180,7 @@ class TariffYAMLImporter:
             "skipped": [],  # [(tariff_name, reason), ...]
             "errors": [],  # [(tariff_name, error_messages), ...]
         }
+        self._rules_by_name: dict[str, ApplicabilityRule] = {}
 
     def import_tariffs(self) -> dict:
         """
@@ -148,6 +201,13 @@ class TariffYAMLImporter:
         except Exception as e:
             # Parse or schema errors affect entire file
             self.results["errors"].append(("YAML File", [str(e)]))
+            return self.results
+
+        # First pass: create all applicability rules
+        try:
+            self._import_applicability_rules(data.get("applicability_rules", []))
+        except Exception as e:
+            self.results["errors"].append(("Applicability Rules", [str(e)]))
             return self.results
 
         # Import each tariff in its own transaction
@@ -184,6 +244,39 @@ class TariffYAMLImporter:
 
         if len(data["tariffs"]) == 0:
             raise ValueError("tariffs list cannot be empty")
+
+        # Validate applicability_rules if present
+        if "applicability_rules" in data and not isinstance(data["applicability_rules"], list):
+            raise ValueError("applicability_rules must be a list")
+
+    def _import_applicability_rules(self, rules_data: list[dict]):
+        """Import all applicability rules and store by name for reference."""
+        for rule_data in rules_data:
+            rule = self._create_applicability_rule(rule_data)
+            self._rules_by_name[rule.name] = rule
+
+    def _create_applicability_rule(self, rule_data: dict) -> ApplicabilityRule:
+        """Create and validate an applicability rule."""
+        if "name" not in rule_data:
+            raise ValueError("Applicability rule missing required field: name")
+
+        rule = ApplicabilityRule(
+            name=rule_data["name"],
+            period_start_time_local=self._parse_time(
+                rule_data.get("period_start_time_local")
+            ) if rule_data.get("period_start_time_local") else None,
+            period_end_time_local=self._parse_time(
+                rule_data.get("period_end_time_local")
+            ) if rule_data.get("period_end_time_local") else None,
+            applies_start_date=self._parse_date(rule_data.get("applies_start_date")),
+            applies_end_date=self._parse_date(rule_data.get("applies_end_date")),
+            applies_weekdays=rule_data.get("applies_weekdays", True),
+            applies_weekends=rule_data.get("applies_weekends", True),
+            applies_holidays=rule_data.get("applies_holidays", True),
+        )
+        rule.full_clean()
+        rule.save()
+        return rule
 
     def _import_single_tariff(self, tariff_data: dict):
         """Import a single tariff atomically."""
@@ -282,40 +375,48 @@ class TariffYAMLImporter:
 
     def _create_energy_charge(self, tariff: Tariff, charge_data: dict):
         """Create and validate an energy charge."""
+        # Get applicability rule names (if any)
+        rule_names = charge_data.get("applicability_rules", [])
+
+        # Validate rule references
+        for rule_name in rule_names:
+            if rule_name not in self._rules_by_name:
+                raise ValidationError(f"Unknown applicability rule: '{rule_name}'")
+
         charge = EnergyCharge(
             tariff=tariff,
             name=charge_data["name"],
             rate_usd_per_kwh=Decimal(str(charge_data["rate_usd_per_kwh"])),
-            period_start_time_local=self._parse_time(charge_data["period_start_time_local"]),
-            period_end_time_local=self._parse_time(charge_data["period_end_time_local"]),
-            applies_start_date=self._parse_date(charge_data.get("applies_start_date")),
-            applies_end_date=self._parse_date(charge_data.get("applies_end_date")),
-            applies_weekdays=charge_data.get("applies_weekdays", True),
-            applies_weekends=charge_data.get("applies_weekends", True),
-            applies_holidays=charge_data.get("applies_holidays", True),
         )
-        # Validate using model's clean() method (matches web interface validation)
         charge.full_clean()
         charge.save()
 
+        # Link applicability rules via M2M
+        for rule_name in rule_names:
+            charge.applicability_rules.add(self._rules_by_name[rule_name])
+
     def _create_demand_charge(self, tariff: Tariff, charge_data: dict):
         """Create and validate a demand charge."""
+        # Get applicability rule names (if any)
+        rule_names = charge_data.get("applicability_rules", [])
+
+        # Validate rule references
+        for rule_name in rule_names:
+            if rule_name not in self._rules_by_name:
+                raise ValidationError(f"Unknown applicability rule: '{rule_name}'")
+
         charge = DemandCharge(
             tariff=tariff,
             name=charge_data["name"],
             rate_usd_per_kw=Decimal(str(charge_data["rate_usd_per_kw"])),
-            period_start_time_local=self._parse_time(charge_data["period_start_time_local"]),
-            period_end_time_local=self._parse_time(charge_data["period_end_time_local"]),
             peak_type=charge_data.get("peak_type", "monthly"),
-            applies_start_date=self._parse_date(charge_data.get("applies_start_date")),
-            applies_end_date=self._parse_date(charge_data.get("applies_end_date")),
-            applies_weekdays=charge_data.get("applies_weekdays", True),
-            applies_weekends=charge_data.get("applies_weekends", True),
-            applies_holidays=charge_data.get("applies_holidays", True),
         )
-        # Validate using model's clean() method (matches web interface validation)
         charge.full_clean()
         charge.save()
+
+        # Link applicability rules via M2M
+        for rule_name in rule_names:
+            charge.applicability_rules.add(self._rules_by_name[rule_name])
 
     def _create_customer_charge(self, tariff: Tariff, charge_data: dict):
         """Create and validate a customer charge."""

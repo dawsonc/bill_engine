@@ -11,9 +11,11 @@ import pandas as pd
 from .types import ApplicabilityRule, DayType
 
 
-def construct_applicability_mask(usage: pd.DataFrame, rule: ApplicabilityRule) -> pd.Series[bool]:
+def _construct_single_rule_mask(
+    usage: pd.DataFrame, rule: ApplicabilityRule
+) -> pd.Series[bool]:
     """
-    Docstring for construct_applicability_mask
+    Construct applicability mask for a single rule.
 
     Args:
         usage: dataframe with columns interval_start, is_weekday, is_weekend, is_holiday
@@ -47,14 +49,54 @@ def construct_applicability_mask(usage: pd.DataFrame, rule: ApplicabilityRule) -
     # Normalize dates to year 2000 for month/day-only comparison
     # This allows rules to match dates regardless of the actual year
     if rule.start_date or rule.end_date:
-        interval_dates_normalized = interval_starts.apply(lambda dt: date(2000, dt.month, dt.day))
+        # Vectorized date normalization: create timestamps with year 2000
+        interval_dates_normalized = pd.to_datetime(
+            {"year": 2000, "month": interval_starts.dt.month, "day": interval_starts.dt.day}
+        )
         if rule.start_date:
             # Normalize rule start_date to year 2000 as well
-            rule_start_normalized = date(2000, rule.start_date.month, rule.start_date.day)
-            rule_mask[~(rule_start_normalized <= interval_dates_normalized)] = False
+            rule_start_normalized = pd.Timestamp(
+                year=2000, month=rule.start_date.month, day=rule.start_date.day
+            )
+            rule_mask &= interval_dates_normalized >= rule_start_normalized
         if rule.end_date:
             # Normalize rule end_date to year 2000 as well
-            rule_end_normalized = date(2000, rule.end_date.month, rule.end_date.day)
-            rule_mask[~(interval_dates_normalized <= rule_end_normalized)] = False
+            rule_end_normalized = pd.Timestamp(
+                year=2000, month=rule.end_date.month, day=rule.end_date.day
+            )
+            rule_mask &= interval_dates_normalized <= rule_end_normalized
 
     return rule_mask
+
+
+def construct_applicability_mask(
+    usage: pd.DataFrame,
+    rules: tuple[ApplicabilityRule, ...],
+) -> pd.Series[bool]:
+    """
+    Construct applicability mask for multiple rules combined with OR logic.
+
+    When multiple rules are provided, the charge applies if ANY rule matches
+    the interval. If no rules are provided, the charge applies everywhere.
+
+    Args:
+        usage: dataframe with columns interval_start, is_weekday, is_weekend, is_holiday
+            (other columns are ignored).
+        rules: tuple of ApplicabilityRule DTOs. Empty tuple means no constraints
+            (charge applies to all intervals).
+
+    Returns:
+        A bool series with the same index as the provided dataframe where each row is
+        True if any rule applies to that interval (or all True if no rules).
+    """
+    if not rules:
+        # No rules means charge applies everywhere
+        return pd.Series(True, index=usage.index)
+
+    # Combine all rule masks with OR logic
+    combined_mask = pd.Series(False, index=usage.index)
+    for rule in rules:
+        rule_mask = _construct_single_rule_mask(usage, rule)
+        combined_mask = combined_mask | rule_mask
+
+    return combined_mask

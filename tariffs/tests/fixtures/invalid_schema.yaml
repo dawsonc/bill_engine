@@ -3,5 +3,5 @@ tariffs:
     energy_charges:
       - name: "Peak Energy"
         rate_usd_per_kwh: 0.15
-        period_start_time_local: "12:00"
-        period_end_time_local: "18:00"
+    demand_charges: []
+    customer_charges: []

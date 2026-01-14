@@ -831,7 +831,40 @@
         fillcolor: 'rgba(214, 39, 40, 0.1)'
       };
 
-      Plotly.newPlot('daily-demand-detail-chart', [demandTrace], {
+      // Build demand charge interval markers (triangles)
+      const demandTraces = [demandTrace];
+      if (data.demand_charge_intervals && data.demand_charge_intervals.length > 0) {
+        const markerTimestamps = [];
+        const markerKw = [];
+        const markerHoverTexts = [];
+
+        data.demand_charge_intervals.forEach(interval => {
+          markerTimestamps.push(interval.timestamp);
+          markerKw.push(interval.kw);
+          const chargeLines = interval.charges.map(c =>
+            `${c.name}: $${c.amount.toFixed(2)}`
+          ).join('<br>');
+          markerHoverTexts.push(`<b>Demand Charges</b><br>Peak: ${interval.kw.toFixed(1)} kW<br>${chargeLines}`);
+        });
+
+        demandTraces.push({
+          x: markerTimestamps,
+          y: markerKw,
+          name: 'Demand Charge',
+          type: 'scatter',
+          mode: 'markers',
+          marker: {
+            symbol: 'triangle-up',
+            size: 12,
+            color: '#ff7f0e',
+            line: { color: '#000', width: 1 }
+          },
+          text: markerHoverTexts,
+          hovertemplate: '%{text}<extra></extra>'
+        });
+      }
+
+      Plotly.newPlot('daily-demand-detail-chart', demandTraces, {
         autosize: true,
         title: { text: `Peak Demand - ${selectedDate}`, font: { size: 14 } },
         xaxis: {

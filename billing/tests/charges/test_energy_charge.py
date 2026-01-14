@@ -68,15 +68,15 @@ def test_zero_usage_intervals(usage_df_factory, energy_charge):
 
 def test_no_applicability_rules(hourly_day_usage):
     """
-    Default rule applies to all intervals (verify all charged).
+    No applicability rules means charge applies to all intervals.
 
     Expected: All intervals charged when no applicability restrictions
     """
-    # Create charge with default (empty) applicability rule
+    # Create charge with no applicability rules (applies everywhere)
     charge = EnergyCharge(
         name="All Hours Energy",
         rate_usd_per_kwh=Decimal("0.30"),
-        applicability=ApplicabilityRule(),  # Default: applies everywhere
+        applicability_rules=(),  # Empty tuple: applies everywhere
     )
 
     result = apply_energy_charge(hourly_day_usage, charge)
@@ -95,8 +95,10 @@ def test_time_of_day_filtering(hourly_day_usage):
     charge = EnergyCharge(
         name="Peak Hours Energy",
         rate_usd_per_kwh=Decimal("0.35"),
-        applicability=ApplicabilityRule(
-            period_start_local=time(12, 0), period_end_local=time(18, 0)
+        applicability_rules=(
+            ApplicabilityRule(
+                period_start_local=time(12, 0), period_end_local=time(18, 0)
+            ),
         ),
     )
 
@@ -120,7 +122,7 @@ def test_weekday_only(full_week_usage):
     charge = EnergyCharge(
         name="Weekday Energy",
         rate_usd_per_kwh=Decimal("0.20"),
-        applicability=ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY])),
+        applicability_rules=(ApplicabilityRule(day_types=frozenset([DayType.WEEKDAY])),),
     )
 
     result = apply_energy_charge(full_week_usage, charge)
@@ -145,7 +147,9 @@ def test_date_range_filtering(month_usage):
     charge = EnergyCharge(
         name="Limited Period Energy",
         rate_usd_per_kwh=Decimal("0.28"),
-        applicability=ApplicabilityRule(start_date=date(2024, 1, 15), end_date=date(2024, 1, 20)),
+        applicability_rules=(
+            ApplicabilityRule(start_date=date(2024, 1, 15), end_date=date(2024, 1, 20)),
+        ),
     )
 
     result = apply_energy_charge(month_usage, charge)
@@ -180,12 +184,14 @@ def test_combined_applicability_rules(usage_df_factory):
     charge = EnergyCharge(
         name="Summer Weekday Business Hours",
         rate_usd_per_kwh=Decimal("0.40"),
-        applicability=ApplicabilityRule(
-            period_start_local=time(9, 0),
-            period_end_local=time(17, 0),
-            start_date=date(2024, 6, 1),
-            end_date=date(2024, 8, 31),
-            day_types=frozenset([DayType.WEEKDAY]),
+        applicability_rules=(
+            ApplicabilityRule(
+                period_start_local=time(9, 0),
+                period_end_local=time(17, 0),
+                start_date=date(2024, 6, 1),
+                end_date=date(2024, 8, 31),
+                day_types=frozenset([DayType.WEEKDAY]),
+            ),
         ),
     )
 
@@ -237,7 +243,9 @@ def test_no_matching_intervals(hourly_day_usage):
     charge = EnergyCharge(
         name="December Only Energy",
         rate_usd_per_kwh=Decimal("0.25"),
-        applicability=ApplicabilityRule(start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)),
+        applicability_rules=(
+            ApplicabilityRule(start_date=date(2023, 12, 1), end_date=date(2023, 12, 31)),
+        ),
     )
 
     result = apply_energy_charge(hourly_day_usage, charge)
@@ -263,3 +271,135 @@ def test_varying_usage_values(usage_df_factory):
     for i, kwh in enumerate(kwh_values):
         expected = charge.rate_usd_per_kwh * Decimal(str(kwh))
         assert result.iloc[i] == expected, f"Interval {i} charge mismatch"
+
+
+# Multiple Applicability Rules Tests
+
+
+def test_multiple_time_windows(hourly_day_usage):
+    """
+    Energy charge applies during morning peak (8-12) OR evening peak (16-20).
+
+    Expected: Both time windows are charged, others are $0
+    """
+    charge = EnergyCharge(
+        name="Dual Peak Energy",
+        rate_usd_per_kwh=Decimal("0.35"),
+        applicability_rules=(
+            ApplicabilityRule(period_start_local=time(8, 0), period_end_local=time(12, 0)),
+            ApplicabilityRule(period_start_local=time(16, 0), period_end_local=time(20, 0)),
+        ),
+    )
+
+    result = apply_energy_charge(hourly_day_usage, charge)
+
+    # Morning peak (8-11) and evening peak (16-19) should be charged
+    peak_hours = [8, 9, 10, 11, 16, 17, 18, 19]
+    for hour in peak_hours:
+        assert result.iloc[hour] > 0, f"Hour {hour} should be charged"
+
+    # Off-peak hours should be $0
+    off_peak_hours = [h for h in range(24) if h not in peak_hours]
+    for hour in off_peak_hours:
+        assert result.iloc[hour] == 0, f"Hour {hour} should not be charged"
+
+    # Verify total charged intervals
+    assert (result > 0).sum() == 8  # 4 morning + 4 evening
+
+
+def test_weekday_peak_or_weekend_all(full_week_usage):
+    """
+    Energy charge applies during weekday peak hours (9-17) OR all weekend hours.
+
+    Expected: Weekdays charged only 9am-5pm, weekends charged all hours
+    """
+    charge = EnergyCharge(
+        name="Weekday Peak or Weekend",
+        rate_usd_per_kwh=Decimal("0.28"),
+        applicability_rules=(
+            ApplicabilityRule(
+                day_types=frozenset([DayType.WEEKDAY]),
+                period_start_local=time(9, 0),
+                period_end_local=time(17, 0),
+            ),
+            ApplicabilityRule(day_types=frozenset([DayType.WEEKEND])),
+        ),
+    )
+
+    result = apply_energy_charge(full_week_usage, charge)
+
+    # Verify weekday peak hours are charged
+    weekday_data = full_week_usage[full_week_usage["is_weekday"]]
+    for idx in weekday_data.index:
+        hour = weekday_data.loc[idx, "interval_start"].hour
+        if 9 <= hour < 17:
+            assert result.loc[idx] > 0, f"Weekday hour {hour} should be charged"
+        else:
+            assert result.loc[idx] == 0, f"Weekday hour {hour} should not be charged"
+
+    # Verify all weekend hours are charged
+    weekend_data = full_week_usage[full_week_usage["is_weekend"]]
+    for idx in weekend_data.index:
+        assert result.loc[idx] > 0, "All weekend hours should be charged"
+
+    # Total: 5 weekdays * 8 peak hours + 2 weekend days * 24 hours = 88
+    assert (result > 0).sum() == 5 * 8 + 2 * 24
+
+
+def test_summer_or_winter_peak(usage_df_factory):
+    """
+    Energy charge applies during summer afternoons (Jun-Aug, 14-20) OR winter mornings (Dec, 6-10).
+
+    Tests multiple rules with both date and time constraints.
+    """
+    # Create data spanning June through December
+    usage = usage_df_factory(start="2024-06-01 00:00:00", periods=214 * 24, freq="1h")
+
+    charge = EnergyCharge(
+        name="Seasonal Peak Energy",
+        rate_usd_per_kwh=Decimal("0.40"),
+        applicability_rules=(
+            ApplicabilityRule(
+                start_date=date(2000, 6, 1),
+                end_date=date(2000, 8, 31),
+                period_start_local=time(14, 0),
+                period_end_local=time(20, 0),
+            ),
+            ApplicabilityRule(
+                start_date=date(2000, 12, 1),
+                end_date=date(2000, 12, 31),
+                period_start_local=time(6, 0),
+                period_end_local=time(10, 0),
+            ),
+        ),
+    )
+
+    result = apply_energy_charge(usage, charge)
+
+    # Verify summer afternoon intervals are charged
+    summer_data = usage[
+        (usage["interval_start"].dt.month >= 6) & (usage["interval_start"].dt.month <= 8)
+    ]
+    summer_charged = 0
+    for idx in summer_data.index:
+        hour = summer_data.loc[idx, "interval_start"].hour
+        if 14 <= hour < 20:
+            assert result.loc[idx] > 0, f"Summer hour {hour} should be charged"
+            summer_charged += 1
+        else:
+            assert result.loc[idx] == 0, f"Summer hour {hour} should not be charged"
+
+    # Verify December morning intervals are charged
+    december_data = usage[usage["interval_start"].dt.month == 12]
+    december_charged = 0
+    for idx in december_data.index:
+        hour = december_data.loc[idx, "interval_start"].hour
+        if 6 <= hour < 10:
+            assert result.loc[idx] > 0, f"December hour {hour} should be charged"
+            december_charged += 1
+        else:
+            assert result.loc[idx] == 0, f"December hour {hour} should not be charged"
+
+    # Verify some intervals were charged in both seasons
+    assert summer_charged > 0, "Some summer intervals should be charged"
+    assert december_charged > 0, "Some December intervals should be charged"
