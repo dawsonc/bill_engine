@@ -41,8 +41,6 @@ The analyst should do all of these tasks via the admin pane.
 
 - [ ] As an analyst, I want to be able to plot a time series of customer usage for a specific day. There should be plots for both energy and peak demand. Each plot should overlay the periods in which different energy and demand charges apply.
 
-- [ ] As an analyst, I want to be able to generate these daily plots for the day that contributed the most to monthly energy charges.
-
 - [ ] As an analyst, I want to be able to generate these daily plots for the day that contributed the most to monthly demand charges.
 
 *(Out of scope for now, but we should be able to extend for this)* As an analyst, I want to be able to do more advanced analytics of customer usage (e.g. correlations with temperature, computing daily or day-of-week average load profiles, etc.). No need to implement this suite of methods for now, but keep it in mind for extensibility.

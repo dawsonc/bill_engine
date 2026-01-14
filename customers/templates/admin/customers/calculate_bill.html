@@ -486,22 +486,27 @@
 
   // 4. DAILY USAGE CHART
   if (chartData.daily_usage && chartData.daily_usage.dates.length > 0) {
-    // Find peak demand day data for triangle markers
-    const peakDays = new Set(chartData.daily_usage.peak_demand_days || []);
-    const peakDates = [];
-    const peakYValues = [];
+    // Find days with demand charges for triangle markers
+    const demandChargeDetails = chartData.daily_usage.demand_charge_details || {};
+    const chargeDates = [];
+    const chargeYValues = [];
+    const chargeHoverTexts = [];
     const maxKwh = Math.max(...chartData.daily_usage.total_kwh);
     const maxKw = Math.max(...chartData.daily_usage.max_kw);
     // Scale factor to convert kW to kWh-equivalent position on y1 axis
     const kwToKwhScale = maxKw > 0 ? maxKwh / maxKw : 1;
 
     chartData.daily_usage.dates.forEach((date, i) => {
-      if (peakDays.has(date)) {
-        peakDates.push(date);
+      if (demandChargeDetails[date]) {
+        chargeDates.push(date);
         // Position triangle above the higher of kWh bar or kW line (scaled to y1)
         const kwhValue = chartData.daily_usage.total_kwh[i];
         const kwEquivalent = chartData.daily_usage.max_kw[i] * kwToKwhScale;
-        peakYValues.push(Math.max(kwhValue, kwEquivalent) + maxKwh * 0.03);
+        chargeYValues.push(Math.max(kwhValue, kwEquivalent) + maxKwh * 0.03);
+        // Build hover text with charge details
+        const charges = demandChargeDetails[date];
+        const chargeLines = charges.map(c => `${c.name}: $${c.amount.toFixed(2)}`).join('<br>');
+        chargeHoverTexts.push(`<b>Demand Charges</b><br>${chargeLines}`);
       }
     });
 
@@ -526,12 +531,12 @@
       }
     ];
 
-    // Add peak demand day markers if any exist
-    if (peakDates.length > 0) {
+    // Add demand charge day markers if any exist
+    if (chargeDates.length > 0) {
       dailyTraces.push({
-        x: peakDates,
-        y: peakYValues,
-        name: 'Peak Demand Day',
+        x: chargeDates,
+        y: chargeYValues,
+        name: 'Demand Charge Day',
         type: 'scatter',
         mode: 'markers',
         marker: {
@@ -541,9 +546,21 @@
           line: { color: '#000', width: 1 }
         },
         yaxis: 'y1',
-        hovertemplate: 'Peak Demand Day<extra></extra>'
+        text: chargeHoverTexts,
+        hovertemplate: '%{text}<extra></extra>'
       });
     }
+
+    // Build vertical lines for billing period boundaries
+    const billingPeriodShapes = (chartData.daily_usage.billing_period_ends || []).map(date => ({
+      type: 'line',
+      x0: date,
+      x1: date,
+      y0: 0,
+      y1: 1,
+      yref: 'paper',
+      line: { color: '#888', width: 1, dash: 'dash' }
+    }));
 
     Plotly.newPlot('daily-usage-chart', dailyTraces, {
       autosize: true,
@@ -566,7 +583,8 @@
       legend: { orientation: 'h', y: -0.2, font: { size: 11 } },
       margin: { l: 60, r: 60, t: 50, b: 80 },
       hoverlabel: { namelength: -1, font: { size: 13 } },
-      hovermode: 'x unified'
+      hovermode: 'x unified',
+      shapes: billingPeriodShapes
     }, { responsive: true, displaylogo: false });
   } else {
     document.getElementById('daily-usage-chart').innerHTML = '<p style="text-align: center; color: #666;">No daily usage data available.</p>';
