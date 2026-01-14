@@ -316,6 +316,7 @@ def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
                 "kw": [],
                 "energy_periods": [],
                 "demand_periods": [],
+                "demand_charge_intervals": [],
             }
             continue
 
@@ -332,12 +333,32 @@ def get_billing_chart_data(billing_result: BillingCalculationResult) -> dict:
             ts.isoformat() for ts in day_df["interval_start"].dt.to_pydatetime()
         ]
 
+        # Find intervals with non-zero demand charges
+        demand_charge_intervals = []
+        if demand_charge_ids:
+            for idx, row in day_df.iterrows():
+                charges_for_interval = []
+                for charge_id, charge_name in charge_id_to_name.items():
+                    amount = row.get(charge_id, 0)
+                    if amount > 0:
+                        charges_for_interval.append({
+                            "name": charge_name,
+                            "amount": round(float(amount), 2),
+                        })
+                if charges_for_interval:
+                    demand_charge_intervals.append({
+                        "timestamp": row["interval_start"].isoformat(),
+                        "kw": float(row["kw"]),
+                        "charges": charges_for_interval,
+                    })
+
         by_date[target_date_str] = {
             "timestamps": timestamps,
             "kwh": day_df["kwh"].tolist(),
             "kw": day_df["kw"].tolist(),
             "energy_periods": energy_periods,
             "demand_periods": demand_periods,
+            "demand_charge_intervals": demand_charge_intervals,
         }
 
     return {
